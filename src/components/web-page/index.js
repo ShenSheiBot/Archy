@@ -10,9 +10,13 @@ class WebPage extends React.Component {
   webviewRefs = {};
   readyMap = new Map();
   pendingUrl = new Map();
+  zoomLevelsByDomain = new Map(); // Track zoom level for each domain
+  zoomTimeout = null;
 
   state = {
-    showNav: this.props.showNav
+    showNav: this.props.showNav,
+    showZoomIndicator: false,
+    currentZoom: 100
   };
 
   toggleNavBar = () => {
@@ -50,6 +54,18 @@ class WebPage extends React.Component {
     ipcRenderer.removeListener('nav.toggle', this.toggleNavBar);
     ipcRenderer.removeListener('nav.show', this.showNavBarInternal);
     ipcRenderer.removeListener('nav.hide', this.hideNavBarInternal);
+  }
+
+  bindZoomHandlers() {
+    ipcRenderer.on('zoom.in', this.handleZoomIn);
+    ipcRenderer.on('zoom.out', this.handleZoomOut);
+    ipcRenderer.on('zoom.reset', this.handleZoomReset);
+  }
+
+  unbindZoomHandlers() {
+    ipcRenderer.removeListener('zoom.in', this.handleZoomIn);
+    ipcRenderer.removeListener('zoom.out', this.handleZoomOut);
+    ipcRenderer.removeListener('zoom.reset', this.handleZoomReset);
   }
 
   setupWebviewListeners = (webview, tabId) => {
@@ -112,6 +128,15 @@ class WebPage extends React.Component {
 
       if (e.url && e.url !== 'about:blank') {
         debouncedUpdate({ url: e.url });
+
+        // Apply saved zoom level for this domain
+        const domain = this.getDomainFromUrl(e.url);
+        if (domain) {
+          const savedZoom = this.zoomLevelsByDomain.get(domain);
+          if (savedZoom && webview) {
+            webview.setZoomFactor(savedZoom);
+          }
+        }
       }
     };
 
@@ -185,6 +210,7 @@ class WebPage extends React.Component {
 
   componentDidMount() {
     this.bindNavBar();
+    this.bindZoomHandlers();
 
     const { tabs = [] } = this.props;
     tabs.forEach(tab => {
@@ -241,11 +267,17 @@ class WebPage extends React.Component {
 
   componentWillUnmount() {
     this.unbindNavBar();
+    this.unbindZoomHandlers();
 
     // Clean up all webview listeners
     Object.values(this.webviewRefs).forEach(wv => {
       this.cleanupWebviewListeners(wv);
     });
+
+    // Clear zoom timeout
+    if (this.zoomTimeout) {
+      clearTimeout(this.zoomTimeout);
+    }
   }
 
   getActiveWebview = () => {
@@ -290,6 +322,75 @@ class WebPage extends React.Component {
     }
   };
 
+  getDomainFromUrl = (url) => {
+    try {
+      const urlObj = new URL(url);
+      return urlObj.hostname;
+    } catch {
+      return null;
+    }
+  };
+
+  showZoomIndicator = (zoomLevel) => {
+    if (this.zoomTimeout) {
+      clearTimeout(this.zoomTimeout);
+    }
+
+    this.setState({
+      showZoomIndicator: true,
+      currentZoom: zoomLevel
+    });
+
+    this.zoomTimeout = setTimeout(() => {
+      this.setState({ showZoomIndicator: false });
+    }, 1500);
+  };
+
+  handleZoomIn = () => {
+    const webview = this.getActiveWebview();
+    if (!webview) return;
+
+    const url = webview.getURL();
+    const domain = this.getDomainFromUrl(url);
+    if (!domain) return;
+
+    const currentZoom = this.zoomLevelsByDomain.get(domain) || 1.0;
+    const newZoom = Math.min(currentZoom + 0.1, 3.0); // Max 300%
+
+    webview.setZoomFactor(newZoom);
+    this.zoomLevelsByDomain.set(domain, newZoom);
+    this.showZoomIndicator(Math.round(newZoom * 100));
+  };
+
+  handleZoomOut = () => {
+    const webview = this.getActiveWebview();
+    if (!webview) return;
+
+    const url = webview.getURL();
+    const domain = this.getDomainFromUrl(url);
+    if (!domain) return;
+
+    const currentZoom = this.zoomLevelsByDomain.get(domain) || 1.0;
+    const newZoom = Math.max(currentZoom - 0.1, 0.5); // Min 50%
+
+    webview.setZoomFactor(newZoom);
+    this.zoomLevelsByDomain.set(domain, newZoom);
+    this.showZoomIndicator(Math.round(newZoom * 100));
+  };
+
+  handleZoomReset = () => {
+    const webview = this.getActiveWebview();
+    if (!webview) return;
+
+    const url = webview.getURL();
+    const domain = this.getDomainFromUrl(url);
+    if (!domain) return;
+
+    webview.setZoomFactor(1.0);
+    this.zoomLevelsByDomain.set(domain, 1.0);
+    this.showZoomIndicator(100);
+  };
+
   render() {
     const {
       tabs = [],
@@ -325,6 +426,11 @@ class WebPage extends React.Component {
           >
             <i className="fa fa-eye"/>
           </button>
+        )}
+        {this.state.showZoomIndicator && (
+          <div className="zoom-indicator">
+            {this.state.currentZoom}%
+          </div>
         )}
         <div className="webview-container">
           {tabs.map(tab => {

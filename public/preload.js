@@ -40,7 +40,10 @@ contextBridge.exposeInMainWorld('electron', {
         'webPage.reload',
         'load-url',
         'tabs.update',
-        'search.toggle'
+        'search.toggle',
+        'zoom.in',
+        'zoom.out',
+        'zoom.reset'
       ];
       if (validChannels.includes(channel)) {
         // Deliberately strip event as it includes `sender`
@@ -57,7 +60,10 @@ contextBridge.exposeInMainWorld('electron', {
         'nav.focus',
         'tabs.update',
         'webPage.reload',
-        'search.toggle'
+        'search.toggle',
+        'zoom.in',
+        'zoom.out',
+        'zoom.reset'
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeListener(channel, func);
