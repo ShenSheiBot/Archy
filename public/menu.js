@@ -103,7 +103,13 @@ function setMainMenu(mainWindow) {
             });
           }
         },
-        { role: 'close' },
+        {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click() {
+            mainWindow.close();
+          }
+        },
         { type: 'separator' },
         { role: 'quit' },
       ]
@@ -128,6 +134,15 @@ function setMainMenu(mainWindow) {
         { role: 'paste' },
         { role: 'selectall' },
         { type: 'separator' },
+        {
+          label: 'Find in Page',
+          accelerator: 'CmdOrCtrl+F',
+          click() {
+            if (mainWindow && mainWindow.webContents) {
+              mainWindow.webContents.send('search.toggle');
+            }
+          }
+        },
         {
           label: 'Refresh',
           accelerator: 'CmdOrCtrl+R',
@@ -180,7 +195,7 @@ function setMainMenu(mainWindow) {
           label: 'Detached Mode',
           accelerator: 'CmdOrCtrl+Shift+D',
           click() {
-            app.dock && app.dock.setBadge('Detached');
+            // Note: No dock badge since dock is hidden
             mainWindow.setIgnoreMouseEvents(true);
           }
         },
@@ -207,25 +222,25 @@ function setMainMenu(mainWindow) {
         {
           label: 'Found a Bug',
           click() {
-            shell.openExternal('https://github.com/kamranahmedse/pennywise/issues/new');
+            shell.openExternal('https://github.com/ShenSheiBot/archy/issues/new');
           }
         },
         {
           label: 'Suggestions',
           click() {
-            shell.openExternal('https://github.com/kamranahmedse/pennywise/issues/new');
+            shell.openExternal('https://github.com/ShenSheiBot/archy/issues/new');
           }
         },
         {
           label: 'Learn More',
           click() {
-            shell.openExternal('https://github.com/kamranahmedse');
+            shell.openExternal('https://github.com/ShenSheiBot/archy');
           }
         },
         {
           label: `About Version`,
           click() {
-            shell.openExternal(`https://github.com/kamranahmedse/pennywise/releases/tag/v${ appVersion }`);
+            shell.openExternal(`https://github.com/ShenSheiBot/archy/releases/tag/v${ appVersion }`);
           }
         },
       ]

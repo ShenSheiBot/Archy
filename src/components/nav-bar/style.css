@@ -1,0 +1,371 @@
+/* Wrapper for NavBar - always rendered, visibility controlled by CSS */
+.navbar-wrapper {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 10000;
+  transition: opacity 150ms ease, transform 150ms ease;
+}
+
+.navbar-wrapper.navbar-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.navbar-wrapper.navbar-hidden {
+  opacity: 0;
+  transform: translateY(-100%); /* Slide out of view */
+  pointer-events: none;
+}
+
+.top-nav {
+  /* CRITICAL: Transparent background (no vibrancy for now to avoid flicker) */
+  background: transparent;
+
+  /* Visual separation (works on transparent background) */
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  position: relative; /* Changed from fixed since wrapper is now fixed */
+  height: 38px;
+  align-items: center;
+  padding: 0 8px;
+  gap: 4px;
+  -webkit-app-region: drag; /* Make titlebar draggable */
+}
+
+@media (prefers-color-scheme: dark) {
+  .top-nav {
+    background: transparent; /* Keep transparent in dark mode too */
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* macOS: Add space for traffic lights (red, yellow, green buttons) */
+.top-nav.top-nav-mac {
+  padding-left: 78px;
+}
+
+/* Ensure all interactive elements are clickable */
+.top-nav .btn-action,
+.top-nav .search-input,
+.top-nav .tab,
+.top-nav .settings-btn {
+  -webkit-app-region: no-drag;
+}
+
+/* Tab bar */
+.tab-bar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  max-width: 40%;
+  padding: 0 2px;
+  -webkit-app-region: no-drag; /* Allow tab interactions */
+}
+
+.tab-bar::-webkit-scrollbar {
+  height: 0;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  height: 26px;
+  /* Keep semi-transparent background so tabs remain visible against vibrancy */
+  background: rgba(232, 232, 232, 0.85);
+  border-radius: 3px;
+  cursor: pointer;
+  width: 32px;
+  flex-shrink: 0;
+  transition: background 0.15s;
+  -webkit-app-region: no-drag; /* Allow tab clicks */
+}
+
+.tab:hover {
+  background: rgba(216, 216, 216, 0.9);
+}
+
+.tab.active {
+  /* Active tab: more opaque for clear visual focus */
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(208, 208, 208, 0.8);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tab {
+    background: rgba(60, 60, 67, 0.7);
+  }
+
+  .tab:hover {
+    background: rgba(80, 80, 87, 0.85);
+  }
+
+  .tab.active {
+    background: rgba(80, 80, 87, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .tab-icon {
+    color: #e0e0e0;
+  }
+}
+
+.tab-favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.tab-icon {
+  font-size: 14px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+/* Nav controls */
+.nav-controls {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  -webkit-app-region: no-drag; /* Allow control interactions */
+}
+
+.top-nav .search-input {
+  font-size: 12px;
+  font-weight: 400;
+  box-shadow: none;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  /* Increase opacity for better readability against vibrancy */
+  background: rgba(255, 255, 255, 0.7);
+  outline: none;
+  flex: 1;
+  color: #333333;
+  padding: 3px 8px;
+  line-height: 18px;
+  margin: 0 2px;
+  height: 24px;
+  min-width: 0;
+  -webkit-app-region: no-drag; /* Allow input interaction */
+}
+
+.top-nav .search-input:focus {
+  border-color: rgba(0, 123, 255, 0.5);
+  /* Even more opaque when focused for maximum readability */
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 0 0.1rem rgba(0,123,255,.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .top-nav .search-input {
+    background: rgba(60, 60, 67, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+  }
+
+  .top-nav .search-input:focus {
+    background: rgba(60, 60, 67, 0.95);
+    border-color: rgba(10, 132, 255, 0.6);
+  }
+
+  .top-nav .search-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+.top-nav .btn-action {
+  outline: none;
+  box-shadow: none;
+  line-height: 24px;
+  border-radius: 3px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: #333333;
+  border: none;
+  font-size: 12px;
+  margin: 0 1px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag; /* Allow button clicks */
+}
+
+.top-nav .btn-action:hover {
+  background: #e0e0e0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .top-nav .btn-action {
+    color: #e0e0e0;
+  }
+
+  .top-nav .btn-action:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.top-nav .btn-go {
+  color: #dc3545;
+}
+
+.top-nav .btn-go:hover {
+  background: #ffeaec;
+}
+
+.top-nav .settings-inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  -webkit-app-region: no-drag;
+}
+
+/* Floating search bar (top-right corner) */
+.search-bar-floating {
+  position: fixed;
+  top: 50px;
+  right: 20px;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  -webkit-app-region: no-drag;
+}
+
+.search-bar-floating .search-input-floating {
+  font-size: 13px;
+  font-weight: 400;
+  padding: 4px 10px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.9);
+  outline: none;
+  width: 180px;
+  height: 26px;
+  color: #333333;
+  -webkit-app-region: no-drag;
+}
+
+.search-bar-floating .search-input-floating::placeholder {
+  color: rgba(0, 0, 0, 0.5);
+}
+
+.search-bar-floating .search-input-floating:focus {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(0, 123, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+}
+
+@media (prefers-color-scheme: dark) {
+  .search-bar-floating {
+    background: rgba(50, 50, 55, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+
+  .search-bar-floating .search-input-floating {
+    background: rgba(60, 60, 67, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+  }
+
+  .search-bar-floating .search-input-floating::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+
+  .search-bar-floating .search-input-floating:focus {
+    background: rgba(60, 60, 67, 1);
+    border-color: rgba(10, 132, 255, 0.7);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.3);
+  }
+}
+
+.search-bar-floating .search-match-info {
+  font-size: 12px;
+  color: #666666;
+  min-width: 40px;
+  text-align: center;
+  font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+  .search-bar-floating .search-match-info {
+    color: #b0b0b0;
+  }
+}
+
+.search-bar-floating .btn-search {
+  outline: none;
+  box-shadow: none;
+  border-radius: 3px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.05);
+  color: #333333;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+  -webkit-app-region: no-drag;
+}
+
+.search-bar-floating .btn-search:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.search-bar-floating .btn-search:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+@media (prefers-color-scheme: dark) {
+  .search-bar-floating .btn-search {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+  }
+
+  .search-bar-floating .btn-search:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* Text readability enhancement: add subtle drop shadow to icons on transparent background */
+.top-nav .btn-action i {
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.5));
+}
+
+@media (prefers-color-scheme: dark) {
+  .top-nav .btn-action i {
+    filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.5));
+  }
+}
+
+/*# sourceMappingURL=style.css.map */

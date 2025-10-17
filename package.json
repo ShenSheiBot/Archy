@@ -1,36 +1,37 @@
 {
-  "name": "pennywise",
-  "description": "Pennywise – Cross-platform application that allows you to open URLs in a floating window that always stays on top.",
-  "productName": "Pennywise",
-  "author": "Kamran Ahmed <kamranahmed.se@gmail.com>",
-  "version": "0.7.0",
+  "name": "archy",
+  "description": "Archy – Cross-platform floating window browser, inspired by Archytas's pigeon, the world's first flying automaton.",
+  "productName": "Archy",
+  "author": "ShenSheiBot",
+  "version": "0.1.0",
   "private": true,
   "main": "public/electron.js",
   "homepage": "./",
   "license": "MIT",
   "dependencies": {
-    "bootstrap": "^4.3.1",
-    "electron-pdf-window": "^1.0.12",
-    "electron-updater": "^4.0.6",
+    "@ghostery/adblocker-electron": "^2.12.4",
+    "bootstrap": "^5.3.7",
+    "cross-fetch": "^4.1.0",
+    "electron-pdf-window": "^1.0.0",
+    "electron-updater": "^6.6.2",
     "font-awesome": "^4.7.0",
     "is-url": "^1.2.4",
     "lodash.debounce": "^4.0.8",
     "nprogress": "^0.2.0",
-    "prop-types": "^15.7.2",
-    "query-string": "^6.7.0",
-    "react": "^16.8.6",
-    "react-dom": "^16.8.6",
-    "react-scripts": "3.0.1",
-    "url-parse": "^1.4.7",
-    "yargs": "^13.2.4"
+    "prop-types": "^15.8.1",
+    "query-string": "^9.2.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "url-parse": "^1.5.10",
+    "yargs": "^18.0.0"
   },
   "scripts": {
-    "_react": "cross-env BROWSER=none react-scripts start",
-    "_electron": "nodemon --exec \"cross-env APP_URL=http://localhost:3000 electron .\" --ext js --watch public/",
-    "_build": "react-scripts build",
-    "start": "concurrently \"yarn _react\" \"wait-on http://localhost:3000 && yarn _electron\" ",
-    "build": "yarn _build && build --mac --win --linux --x64 --ia32 -p always",
-    "icons": "electron-icon-maker -i public/img/pennywise.png -o public",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "electron": "electron .",
+    "electron:dev": "concurrently \"yarn dev\" \"wait-on http://localhost:5173 && cross-env APP_URL=http://localhost:5173 electron .\"",
+    "electron:build": "yarn build && electron-builder --mac",
     "test": "mocha"
   },
   "eslintConfig": {
@@ -44,13 +45,13 @@
   ],
   "build": {
     "extends": null,
-    "appId": "info.kamranahmed.pennywise",
+    "appId": "com.archy.app",
     "asar": true,
     "copyright": "Copyright © 2018 Kamran Ahmed",
     "files": [
       "public/**/*",
       "build/**/*",
-      "!public/pennywise.png",
+      "!public/archy.png",
       "package.json"
     ],
     "mac": {
@@ -93,25 +94,26 @@
     "fileAssociations": [
       {
         "name": "Document",
-        "description": "Pennywise",
+        "description": "Archy",
         "role": "Viewer",
         "ext": "html"
       }
     ]
   },
   "devDependencies": {
-    "concurrently": "^4.1.0",
-    "cross-env": "^5.2.0",
-    "electron": "^5.0.3",
-    "electron-builder": "^20.43.0",
-    "electron-icon-maker": "^0.0.4",
-    "jquery": "^3.4.1",
-    "mocha": "^6.1.4",
-    "node-sass": "^4.12.0",
-    "nodemon": "^1.19.1",
-    "popper.js": "^1.15.0",
-    "spectron": "^5.0.0",
-    "wait-on": "^3.2.0",
-    "typescript": "^3.6.4"
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.2.0",
+    "cross-env": "^10.0.0",
+    "electron": "^37.3.1",
+    "electron-builder": "^26.0.12",
+    "mocha": "^11.7.1",
+    "nodemon": "^3.1.10",
+    "popper.js": "^1.16.1",
+    "sass": "^1.90.0",
+    "vite": "^6.0.7",
+    "vite-plugin-electron": "^0.29.0",
+    "vite-plugin-electron-renderer": "^0.14.6",
+    "vite-plugin-svgr": "^4.3.0",
+    "wait-on": "^8.0.4"
   }
 }

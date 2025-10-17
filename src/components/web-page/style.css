@@ -1,0 +1,61 @@
+.webpage {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: transparent;
+}
+
+.webview-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 0; /* Below navbar and all other UI elements */
+  display: flex;
+  min-height: 0;
+  /* Background color to prevent transparency during page load */
+  background-color: #f8f9fa;
+}
+
+.webpage.with-nav .webview-container {
+  top: 38px; /* NAV_BAR_HEIGHT */
+}
+
+.tab-webview {
+  flex: 1 1 auto;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  /* Always display:flex to keep rendering context alive */
+  display: flex;
+  /* Key: Make webview a vertical flex container so inner iframe stretches */
+  flex-direction: column;
+  align-items: stretch;
+  /* GPU acceleration */
+  will-change: opacity;
+  backface-visibility: hidden;
+  transform: translateZ(0);
+  /* Inactive tabs: hidden via opacity */
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 100ms ease;
+}
+
+.tab-webview.active {
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 1;
+}
+
+/* Loading state: keep invisible until content is ready */
+.tab-webview.webview-loading {
+  opacity: 0 !important;
+}
+
+/*# sourceMappingURL=style.css.map */

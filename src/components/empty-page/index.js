@@ -1,8 +1,8 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import { ReactComponent as Pennywise } from '../../icons/pennywise.svg';
-import './style.scss';
+import archyIcon from '../../../public/img/background-less.png';
+import './style.css';
 
 class EmptyPage extends React.Component {
   onKeyPress = (e) => {
@@ -12,11 +12,13 @@ class EmptyPage extends React.Component {
   };
 
   render() {
+    const { className = '' } = this.props;
+
     return (
-      <div className='empty-page'>
-        <Pennywise/>
-        <h1>Pennywise</h1>
-        <p>Enter the URL below to get started – I will float it for you</p>
+      <div className={ 'empty-page ' + className }>
+        <img src={archyIcon} alt="Archy" className="archy-logo" />
+        <h1>Archy</h1>
+        <p>Inspired by Archytas's pigeon – the world's first flying automaton</p>
         <input type="text" placeholder="Enter a URL you would like to see float" onKeyPress={ this.onKeyPress } autoFocus/>
       </div>
     );
@@ -24,7 +26,8 @@ class EmptyPage extends React.Component {
 }
 
 EmptyPage.propTypes = {
-  onUrl: PropTypes.func.isRequired
+  onUrl: PropTypes.func.isRequired,
+  className: PropTypes.string
 };
 
 export default EmptyPage;
