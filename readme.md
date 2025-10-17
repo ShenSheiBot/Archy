@@ -11,7 +11,7 @@
 
 ---
 
-Archy opens any website or media in a **small floating window that remains on top of all other applications**. The window stays up **all the time**. No more <kbd>alt + tab</kbd> switching – use Archy for **easy multitasking**.
+Archy opens any website or media in a **small floating window that remains on top of all other applications**. The window stays up **all the time**, keeping important content visible while you work on other tasks. Perfect for **easy multitasking**.
 
 **Inspired by [Archytas's pigeon](https://en.wikipedia.org/wiki/Archytas#The_flying_dove)** – the world's first self-propelled flying automaton, created around 400 BC.
 
@@ -22,6 +22,10 @@ Archy opens any website or media in a **small floating window that remains on to
 * Always **stays on top** of any open applications
 * **Customizable opacity** – gets out of your way while you work
 * **Multi-tab support** with keyboard shortcuts
+* **Per-domain zoom control** – persistent zoom levels (50%-300%)
+* **In-page search** with match navigation (Cmd+F)
+* **Startup options** – blank page, restore session, or custom URL
+* **Hide navbar mode** – minimal distraction
 * **Menu bar icon** – no dock clutter
 * **Detached mode** for click-through
 * **Frameless window** option
@@ -47,15 +51,27 @@ The built app will be in `dist/` directory.
 
 ### Keyboard Shortcuts
 
+**Window & Tabs**
 * **Global Toggle**: <kbd>Ctrl+Alt+Shift+0</kbd> – Show/hide window from anywhere
 * **New Tab**: <kbd>Cmd/Ctrl+T</kbd>
 * **Close Tab**: <kbd>Cmd/Ctrl+W</kbd>
 * **Next Tab**: <kbd>Ctrl+Tab</kbd>
 * **Previous Tab**: <kbd>Ctrl+Shift+Tab</kbd>
-* **Detached Mode**: <kbd>Cmd/Ctrl+Shift+D</kbd> – Makes window non-interactive (click-through)
-* **Toggle Navbar**: <kbd>Cmd/Ctrl+Shift+L</kbd>
+
+**Navigation & View**
 * **Focus URL**: <kbd>Cmd/Ctrl+L</kbd>
 * **Refresh**: <kbd>Cmd/Ctrl+R</kbd>
+* **Find in Page**: <kbd>Cmd/Ctrl+F</kbd>
+* **Toggle Navbar**: <kbd>Cmd/Ctrl+Shift+L</kbd>
+
+**Zoom**
+* **Zoom In**: <kbd>Cmd/Ctrl++</kbd>
+* **Zoom Out**: <kbd>Cmd/Ctrl+-</kbd>
+* **Reset Zoom**: <kbd>Cmd/Ctrl+0</kbd>
+
+**Modes**
+* **Detached Mode**: <kbd>Cmd/Ctrl+Shift+D</kbd> – Makes window non-interactive (click-through)
+* **Frameless Window**: <kbd>Cmd/Ctrl+Shift+F</kbd> – Toggle window frame (requires restart)
 
 ### Menu Bar
 
@@ -64,27 +80,27 @@ The built app will be in `dist/` directory.
 
 ### Opacity Control
 
-* **Menu**: View → Set Opacity (10%-100%)
+* **Menu**: View → Set Opacity (20%-100%)
 * **Shortcuts**: <kbd>Cmd/Ctrl+Shift+Up/Down</kbd> – Increase/decrease by 10%
-* **Direct**: <kbd>Cmd/Ctrl+1-9,0</kbd> – Set to 10%-100%
+* **Slider**: Settings panel in navbar
 
-### Frameless Mode
+### Startup Options
 
-Toggle window frame (removes title bar):
-```bash
-# Launch without frame
-archy --frameless
-```
-
-Or use menu: View → Frameless Window → <kbd>Cmd/Ctrl+Shift+F</kbd> (requires restart)
+Configure how Archy starts (via Settings panel):
+* **Blank Page** – Start with empty tab
+* **Restore Session** – Restore previous tabs (default)
+* **Custom URL** – Open specific URL on startup
 
 ## Use Cases
 
-* **Coding tutorials** – Watch while you code
-* **Documentation** – Keep docs visible
-* **Video courses** – Follow along with demos
-* **UI development** – See live output without switching
-* **Monitoring** – Keep dashboards in view
+* **AI Assistants** – Keep ChatGPT, Claude, or other AI tools visible while working
+* **Videos with Danmaku** – Watch Bilibili, Niconico, or other sites that don't support PiP
+* **Coding tutorials** – Follow along while you code
+* **Documentation** – Keep reference docs always visible
+* **Video courses** – Watch demos without switching windows
+* **Live streams** – Monitor streams while working
+* **UI development** – See live output alongside code
+* **Dashboards** – Keep monitoring tools in view
 * **Multi-tasking** – Any content that needs to stay visible
 
 ## Why "Archy"?
@@ -110,9 +126,11 @@ npm run electron:build
 
 ### Detached Mode
 
-When enabled (<kbd>Cmd/Ctrl+Shift+D</kbd>), the window becomes non-interactive and lets all clicks pass through to apps below it. To exit detached mode:
+When enabled (<kbd>Cmd/Ctrl+Shift+D</kbd>), the window becomes non-interactive and lets all clicks pass through to apps below it. Perfect for overlay displays.
+
+To exit detached mode:
 * Click the menu bar icon
-* Use <kbd>Alt+Tab</kbd> to focus the window
+* Focus the window to re-enable mouse events
 
 ### Video Embedding
 
