@@ -37,17 +37,13 @@ const { setMainMenu } = require('./menu');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const fetch = require('cross-fetch');
 const { saveSession: saveSessionToFile, loadSession: loadSessionFromFile } = require('./sessionManager');
+const tabManager = require('./tabManager');
 
 let mainWindow;
 let isWindowVisible = true;
 let tray = null;
 
-let tabs = [];
-let activeTabId = null;
-let nextTabId = 1;
 let tabShortcutsBound = false;
-
-const pendingUpdates = new Map();
 
 // Theme state management
 let currentTheme = 'system';  // 'system', 'light', 'dark'
@@ -57,13 +53,14 @@ let currentGlobalShortcut = 'Control+Alt+Shift+0';
 
 // Save session to disk
 function saveSession() {
+  const tabs = tabManager.getTabs();
   const sessionData = {
     tabs: tabs.map(t => ({
       url: t.url,
       title: t.title,
       favicon: t.favicon
     })),
-    activeTabId: activeTabId,
+    activeTabId: tabManager.getActiveTabId(),
     theme: currentTheme,
     globalShortcut: currentGlobalShortcut
   };
@@ -102,6 +99,9 @@ function restoreSession() {
 
   // Restore tabs
   if (session.tabs && session.tabs.length > 0) {
+    const restoredTabs = [];
+    let nextTabId = 1;
+
     session.tabs.forEach((tabData, index) => {
       const tabId = nextTabId++;
       const tab = {
@@ -111,13 +111,12 @@ function restoreSession() {
         favicon: tabData.favicon || null,
         loading: false
       };
-      tabs.push(tab);
+      restoredTabs.push(tab);
     });
 
-    // Restore active tab (use first tab if activeTabId is invalid)
-    if (tabs.length > 0) {
-      activeTabId = tabs[0].id;
-    }
+    // Set tabs in tabManager (use first tab as active)
+    const activeTabId = restoredTabs.length > 0 ? restoredTabs[0].id : null;
+    tabManager.setTabs(restoredTabs, activeTabId, nextTabId);
 
     sendTabsUpdate();
     return true;
@@ -300,7 +299,7 @@ function createWindow() {
   });
 
   mainWindow.on('ready-to-show', () => {
-    if (tabs.length === 0) {
+    if (tabManager.getTabs().length === 0) {
       mainWindow.setBrowserView(null);
     }
 
@@ -343,78 +342,35 @@ function createWindow() {
   setMainMenu(mainWindow);
 }
 
-function createTab(targetUrl = '') {
-  const tabId = nextTabId++;
+// Helper function to send tabs update to renderer
+function sendTabsUpdate() {
+  if (!mainWindow) return;
+  const tabsData = tabManager.getTabsData();
+  mainWindow.webContents.send('tabs.update', tabsData);
+}
 
-  const tab = {
-    id: tabId,
-    url: targetUrl || '',
-    title: 'New Tab',
-    favicon: null,
-    loading: false
-  };
-
-  tabs.push(tab);
-  activeTabId = tabId;
-  sendTabsUpdate();
-
+// Helper function to notify renderer (show nav, focus)
+function notifyRenderer() {
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send('nav.show');
     mainWindow.webContents.send('nav.focus');
   }
+}
 
-  return tabId;
+function createTab(targetUrl = '') {
+  return tabManager.createTab(targetUrl, sendTabsUpdate, notifyRenderer);
 }
 
 function switchToTab(tabId) {
-  const tab = tabs.find(t => t.id === tabId);
-  if (!tab) return;
-
-  activeTabId = tabId;
-  sendTabsUpdate();
+  return tabManager.switchToTab(tabId, sendTabsUpdate);
 }
 
 function closeTab(tabId) {
-  const tabIndex = tabs.findIndex(t => t.id === tabId);
-  if (tabIndex === -1) return;
-
-  tabs.splice(tabIndex, 1);
-
-  if (activeTabId === tabId) {
-    if (tabs.length > 0) {
-      const newActiveIndex = Math.min(tabIndex, tabs.length - 1);
-      activeTabId = tabs[newActiveIndex].id;
-    } else {
-      activeTabId = null;
-    }
-  }
-
-  sendTabsUpdate();
+  return tabManager.closeTab(tabId, sendTabsUpdate);
 }
 
 function navigateTab(tabId, targetUrl) {
-  const tab = tabs.find(t => t.id === tabId);
-  if (!tab) return;
-
-  tab.url = targetUrl;
-  sendTabsUpdate();
-}
-
-function sendTabsUpdate() {
-  if (!mainWindow) return;
-
-  const tabsList = tabs.map(t => ({
-    id: t.id,
-    url: t.url,
-    title: t.title,
-    favicon: t.favicon,
-    loading: t.loading
-  }));
-
-  mainWindow.webContents.send('tabs.update', {
-    tabs: tabsList,
-    activeTabId: activeTabId
-  });
+  return tabManager.navigateTab(tabId, targetUrl, sendTabsUpdate);
 }
 
 function bindShortcutsToWebContents(webContents) {
@@ -431,6 +387,8 @@ function bindShortcutsToWebContents(webContents) {
 
     if (input.meta && input.key === 'w' && input.type === 'keyDown') {
       event.preventDefault();
+      const activeTabId = tabManager.getActiveTabId();
+      const tabs = tabManager.getTabs();
       if (activeTabId && tabs.length > 0) {
         closeTab(activeTabId);
       } else if (tabs.length === 0 && mainWindow) {
@@ -450,6 +408,8 @@ function bindShortcutsToWebContents(webContents) {
     // Ctrl+Shift+Tab: Previous tab
     if (input.control && input.shift && input.key === 'Tab' && input.type === 'keyDown') {
       event.preventDefault();
+      const activeTabId = tabManager.getActiveTabId();
+      const tabs = tabManager.getTabs();
       const currentIndex = tabs.findIndex(t => t.id === activeTabId);
       if (currentIndex > 0) {
         switchToTab(tabs[currentIndex - 1].id);
@@ -463,6 +423,8 @@ function bindShortcutsToWebContents(webContents) {
     // Ctrl+Tab: Next tab
     if (input.control && !input.shift && input.key === 'Tab' && input.type === 'keyDown') {
       event.preventDefault();
+      const activeTabId = tabManager.getActiveTabId();
+      const tabs = tabManager.getTabs();
       const currentIndex = tabs.findIndex(t => t.id === activeTabId);
       if (currentIndex >= 0 && currentIndex < tabs.length - 1) {
         switchToTab(tabs[currentIndex + 1].id);
@@ -571,46 +533,11 @@ function bindIpc() {
   });
 
   ipcMain.on('tab.update', (event, { tabId, updates }) => {
-    const tabIndex = tabs.findIndex(t => t.id === tabId);
-    if (tabIndex === -1) return;
-
-    const pending = pendingUpdates.get(tabId) || { data: {}, timer: null };
-    Object.assign(pending.data, updates);
-
-    if (!pending.timer) {
-      pending.timer = setTimeout(() => {
-        const tab = tabs[tabIndex];
-        let hasChanges = false;
-
-        for (const [key, value] of Object.entries(pending.data)) {
-          if (tab[key] !== value) {
-            tab[key] = value;
-            hasChanges = true;
-          }
-        }
-
-        if (hasChanges) {
-          sendTabsUpdate();
-        }
-
-        pendingUpdates.delete(tabId);
-      }, 64);
-    }
-
-    pendingUpdates.set(tabId, pending);
+    tabManager.updateTab(tabId, updates, sendTabsUpdate);
   });
 
   ipcMain.on('tabs.get', (event) => {
-    event.returnValue = {
-      tabs: tabs.map(t => ({
-        id: t.id,
-        url: t.url,
-        title: t.title,
-        favicon: t.favicon,
-        loading: t.loading
-      })),
-      activeTabId: activeTabId
-    };
+    event.returnValue = tabManager.getTabsData();
   });
 }
 
