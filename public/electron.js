@@ -140,6 +140,7 @@ function createWindow() {
     show: false,
     frame: argv.frameless ? false : true,
     titleBarStyle: process.platform === 'darwin' && !argv.frameless ? 'hiddenInset' : 'default',
+    fullscreenable: false,  // Disable native fullscreen on macOS
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
