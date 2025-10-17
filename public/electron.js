@@ -40,6 +40,90 @@ const pendingUpdates = new Map();
 // Theme state management
 let currentTheme = 'system';  // 'system', 'light', 'dark'
 
+// Session file path
+const sessionFilePath = path.join(app.getPath('userData'), 'session.json');
+
+// Save session to disk
+function saveSession() {
+  try {
+    const session = {
+      tabs: tabs.map(t => ({
+        url: t.url,
+        title: t.title,
+        favicon: t.favicon
+      })),
+      activeTabId: activeTabId,
+      theme: currentTheme
+    };
+
+    // Save window bounds and opacity if window exists
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      const bounds = mainWindow.getBounds();
+      const opacity = mainWindow.getOpacity();
+      session.windowBounds = bounds;
+      session.opacity = opacity;
+      console.log('[Session] Saved window bounds:', bounds, 'opacity:', opacity);
+    }
+
+    fs.writeFileSync(sessionFilePath, JSON.stringify(session, null, 2));
+    console.log('[Session] Saved session:', session.tabs.length, 'tabs');
+  } catch (err) {
+    console.error('[Session] Failed to save:', err);
+  }
+}
+
+// Load session from disk
+function loadSession() {
+  try {
+    if (!fs.existsSync(sessionFilePath)) {
+      console.log('[Session] No saved session found');
+      return null;
+    }
+
+    const data = fs.readFileSync(sessionFilePath, 'utf8');
+    const session = JSON.parse(data);
+    console.log('[Session] Loaded session:', session.tabs?.length || 0, 'tabs');
+    return session;
+  } catch (err) {
+    console.error('[Session] Failed to load:', err);
+    return null;
+  }
+}
+
+// Restore session
+function restoreSession() {
+  const session = loadSession();
+  if (!session || !session.tabs || session.tabs.length === 0) {
+    return false;
+  }
+
+  // Restore theme
+  if (session.theme) {
+    currentTheme = session.theme;
+  }
+
+  // Restore tabs
+  session.tabs.forEach((tabData, index) => {
+    const tabId = nextTabId++;
+    const tab = {
+      id: tabId,
+      url: tabData.url || '',
+      title: tabData.title || 'New Tab',
+      favicon: tabData.favicon || null,
+      loading: false
+    };
+    tabs.push(tab);
+  });
+
+  // Restore active tab (use first tab if activeTabId is invalid)
+  if (tabs.length > 0) {
+    activeTabId = tabs[0].id;
+  }
+
+  sendTabsUpdate();
+  return true;
+}
+
 function applyTheme(theme) {
   currentTheme = theme;
 
@@ -132,9 +216,15 @@ function ensureDevtoolsWindowFor(wc, hostWindow) {
 
 
 function createWindow() {
+  // Try to restore window bounds from saved session
+  const savedSession = loadSession();
+  const savedBounds = savedSession?.windowBounds;
+
   const windowOptions = {
-    width: 700,
-    height: 600,
+    width: savedBounds?.width || 700,
+    height: savedBounds?.height || 600,
+    x: savedBounds?.x,
+    y: savedBounds?.y,
     autoHideMenuBar: true,
     transparent: true,
     show: false,
@@ -153,6 +243,10 @@ function createWindow() {
     },
   };
 
+  if (savedBounds) {
+    console.log('[Session] Restoring window bounds:', savedBounds);
+  }
+
   // Set initial background color based on current theme
   const effectiveTheme = currentTheme === 'system'
     ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
@@ -168,6 +262,12 @@ function createWindow() {
   }
 
   mainWindow = new BrowserWindow(windowOptions);
+
+  // Restore opacity if saved
+  if (savedSession?.opacity !== undefined) {
+    mainWindow.setOpacity(savedSession.opacity);
+    console.log('[Session] Restored opacity:', savedSession.opacity);
+  }
 
   bindIpc();
 
@@ -185,6 +285,9 @@ function createWindow() {
 
     // Apply initial theme
     applyTheme(currentTheme);
+
+    // Restore session after page loads
+    restoreSession();
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -197,10 +300,14 @@ function createWindow() {
     bindTabShortcuts();
   });
 
+  mainWindow.on('close', function () {
+    // Save session before closing
+    saveSession();
+  });
+
   mainWindow.on('closed', function () {
+    // Don't clear tabs here - they're needed for will-quit save
     mainWindow = null;
-    tabs = [];
-    activeTabId = null;
     tabShortcutsBound = false;
   });
 
@@ -704,5 +811,6 @@ app.on('window-all-closed', function () {
 });
 
 app.on('will-quit', () => {
+  // Session already saved in window 'close' event
   globalShortcut.unregisterAll();
 });
