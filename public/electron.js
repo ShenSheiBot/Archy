@@ -1,48 +1,108 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const pdfWindow = require('electron-pdf-window');
 const path = require('path');
-const argv = require('yargs').parse(process.argv.slice(1));
+const { hideBin } = require('yargs/helpers');
+const yargs = require('yargs/yargs');
+const argv = yargs(hideBin(process.argv)).parse();
 
 const http = require('http');
 const url = require('url');
 const fs = require('fs');
 const os = require('os');
 
-const { setMainMenu } = require('./menu');
-
-// Keep a global reference of the window object, if you don't, the window will
-// be closed automatically when the JavaScript object is garbage collected.
-let mainWindow;
-
-// Add flash support. If $USER_HOME/.pennywise-flash exists as plugin directory or symlink uses that.
-const flashPath = path.join(os.homedir(), ".pennywise-flash");
-if (flashPath && fs.existsSync(flashPath)) {
-  try {
-    app.commandLine.appendSwitch('ppapi-flash-path', fs.realpathSync(flashPath));
-    console.log("Attempting to load flash at " + flashPath)
-  } catch (e) {
-    console.log("Error finding flash at " + flashPath + ": " + e.message);
+// Prevent EPIPE errors from crashing the app (common in dev mode with concurrently)
+process.on('uncaughtException', (err) => {
+  if (err.code === 'EPIPE' || (err.message && err.message.includes('EPIPE'))) {
+    // Ignore EPIPE errors - happens when stdout/stderr is closed (e.g., in dev mode)
+    return;
   }
+  // Re-throw other errors
+  console.error('Uncaught Exception:', err);
+  throw err;
+});
+
+const { setMainMenu } = require('./menu');
+const { ElectronBlocker } = require('@ghostery/adblocker-electron');
+const fetch = require('cross-fetch');
+
+let mainWindow;
+let isWindowVisible = true;
+let tray = null;
+
+let tabs = [];
+let activeTabId = null;
+let nextTabId = 1;
+let tabShortcutsBound = false;
+
+const pendingUpdates = new Map();
+
+function ensureDevtoolsWindowFor(wc, hostWindow) {
+  if (!wc || wc.isDestroyed()) return;
+
+  if (wc.__devtoolsWin && !wc.__devtoolsWin.isDestroyed()) {
+    wc.__devtoolsWin.focus();
+    return wc.__devtoolsWin;
+  }
+
+  const devtoolsWin = new BrowserWindow({
+    width: 980,
+    height: 720,
+    useContentSize: true,
+    title: 'DevTools',
+    autoHideMenuBar: true,
+  });
+
+  // Render DevTools in the new window
+  wc.setDevToolsWebContents(devtoolsWin.webContents);
+  wc.openDevTools({ mode: 'undocked' });
+
+  // Position alongside main window
+  const positionAlongside = () => {
+    if (hostWindow.isDestroyed() || devtoolsWin.isDestroyed()) return;
+    const [x, y] = hostWindow.getPosition();
+    const [w, h] = hostWindow.getSize();
+    devtoolsWin.setBounds({ x: x + w + 12, y, width: 980, height: Math.max(600, h) });
+  };
+  positionAlongside();
+  hostWindow.on('move', positionAlongside);
+  hostWindow.on('resize', positionAlongside);
+
+  devtoolsWin.on('closed', () => { wc.__devtoolsWin = null; });
+  wc.__devtoolsWin = devtoolsWin;
+  return devtoolsWin;
 }
 
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    title: 'Pennywise',
+  const windowOptions = {
     width: 700,
     height: 600,
     autoHideMenuBar: true,
-    backgroundColor: '#16171a',
+    transparent: true,
     show: false,
     frame: argv.frameless ? false : true,
+    titleBarStyle: process.platform === 'darwin' && !argv.frameless ? 'hiddenInset' : 'default',
     webPreferences: {
-      plugins: true,
-      nodeIntegration: true,
-      webviewTag: true
+      preload: path.join(__dirname, 'preload.js'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      webviewTag: true,
+      webSecurity: true,
+      sandbox: false,
+      backgroundThrottling: false
     },
-  });
+  };
 
-  pdfWindow.addSupport(mainWindow);
+  if (process.platform === 'darwin') {
+    windowOptions.backgroundColor = '#F8F9FA';
+  } else {
+    windowOptions.backgroundColor = '#F0F8F9FA';
+  }
+
+  mainWindow = new BrowserWindow(windowOptions);
+
+  bindIpc();
 
   const isDev = !!process.env.APP_URL;
   if (process.env.APP_URL) {
@@ -51,55 +111,318 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
   }
 
-  // Show the window once the content has been loaded
+  mainWindow.webContents.on('did-finish-load', () => {
+    const platform = process.platform;
+    const jsCode = `document.body.classList.add('platform-${platform}');`;
+    mainWindow.webContents.executeJavaScript(jsCode);
+  });
+
   mainWindow.on('ready-to-show', () => {
-    // Hide the dock icon before showing and
-    // show it once the app has been displayed
-    // @link https://github.com/electron/electron/issues/10078
-    // @fixme hack to make it show on full-screen windows
-    app.dock && app.dock.hide();
+    if (tabs.length === 0) {
+      mainWindow.setBrowserView(null);
+    }
+
     mainWindow.show();
-    app.dock && app.dock.show();
-
-    // Set the window to be always on top
-    mainWindow.setAlwaysOnTop(true);
-    mainWindow.setVisibleOnAllWorkspaces(true);
-    mainWindow.setFullScreenable(false);
-
-    bindIpc();
+    isWindowVisible = true;
+    bindTabShortcuts();
   });
 
   mainWindow.on('closed', function () {
     mainWindow = null;
+    tabs = [];
+    activeTabId = null;
+    tabShortcutsBound = false;
   });
 
-  // Open the dev tools only for dev
-  // and when the flag is not set
-  if (isDev && !process.env.DEV_TOOLS) {
-    mainWindow.webContents.openDevTools();
-  }
+  ['enter-full-screen', 'leave-full-screen', 'restore', 'show'].forEach(evt => {
+    mainWindow.on(evt, () => {
+      ensureOverlayState(mainWindow);
+    });
+  });
+
+  mainWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
+    if (!isAlwaysOnTop) {
+      ensureOverlayState(mainWindow);
+    }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
 
   setMainMenu(mainWindow);
 }
 
-// Binds the methods for renderer/electron communication
+function createTab(targetUrl = '') {
+  const tabId = nextTabId++;
+
+  const tab = {
+    id: tabId,
+    url: targetUrl || '',
+    title: 'New Tab',
+    favicon: null,
+    loading: false
+  };
+
+  tabs.push(tab);
+  activeTabId = tabId;
+  sendTabsUpdate();
+
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send('nav.show');
+    mainWindow.webContents.send('nav.focus');
+  }
+
+  return tabId;
+}
+
+function switchToTab(tabId) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  activeTabId = tabId;
+  sendTabsUpdate();
+}
+
+function closeTab(tabId) {
+  const tabIndex = tabs.findIndex(t => t.id === tabId);
+  if (tabIndex === -1) return;
+
+  tabs.splice(tabIndex, 1);
+
+  if (activeTabId === tabId) {
+    if (tabs.length > 0) {
+      const newActiveIndex = Math.min(tabIndex, tabs.length - 1);
+      activeTabId = tabs[newActiveIndex].id;
+    } else {
+      activeTabId = null;
+    }
+  }
+
+  sendTabsUpdate();
+}
+
+function navigateTab(tabId, targetUrl) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return;
+
+  tab.url = targetUrl;
+  sendTabsUpdate();
+}
+
+function sendTabsUpdate() {
+  if (!mainWindow) return;
+
+  const tabsList = tabs.map(t => ({
+    id: t.id,
+    url: t.url,
+    title: t.title,
+    favicon: t.favicon,
+    loading: t.loading
+  }));
+
+  mainWindow.webContents.send('tabs.update', {
+    tabs: tabsList,
+    activeTabId: activeTabId
+  });
+}
+
+function bindShortcutsToWebContents(webContents) {
+  webContents.on('before-input-event', (event, input) => {
+    if (input.meta && input.key === 't' && input.type === 'keyDown') {
+      event.preventDefault();
+      createTab('');
+      return;
+    }
+
+    if (input.meta && input.key === 'w' && input.type === 'keyDown') {
+      event.preventDefault();
+      if (activeTabId && tabs.length > 0) {
+        closeTab(activeTabId);
+      } else if (tabs.length === 0 && mainWindow) {
+        mainWindow.close();
+      }
+      return;
+    }
+
+    if (input.meta && input.key === 'f' && input.type === 'keyDown') {
+      event.preventDefault();
+      if (mainWindow && mainWindow.webContents) {
+        mainWindow.webContents.send('search.toggle');
+      }
+      return;
+    }
+
+    // Ctrl+Shift+Tab: Previous tab
+    if (input.control && input.shift && input.key === 'Tab' && input.type === 'keyDown') {
+      event.preventDefault();
+      const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+      if (currentIndex > 0) {
+        switchToTab(tabs[currentIndex - 1].id);
+      } else if (tabs.length > 0) {
+        // Wrap to last tab
+        switchToTab(tabs[tabs.length - 1].id);
+      }
+      return;
+    }
+
+    // Ctrl+Tab: Next tab
+    if (input.control && !input.shift && input.key === 'Tab' && input.type === 'keyDown') {
+      event.preventDefault();
+      const currentIndex = tabs.findIndex(t => t.id === activeTabId);
+      if (currentIndex >= 0 && currentIndex < tabs.length - 1) {
+        switchToTab(tabs[currentIndex + 1].id);
+      } else if (tabs.length > 0) {
+        // Wrap to first tab
+        switchToTab(tabs[0].id);
+      }
+      return;
+    }
+
+  });
+}
+
+function bindTabShortcuts() {
+  if (!mainWindow || tabShortcutsBound) return;
+
+  tabShortcutsBound = true;
+  bindShortcutsToWebContents(mainWindow.webContents);
+}
+
 function bindIpc() {
-  // Binds the opacity getter functionality
+  ipcMain.removeAllListeners('opacity.get');
+  ipcMain.removeAllListeners('opacity.set');
+  ipcMain.removeAllListeners('tab.create');
+  ipcMain.removeAllListeners('tab.close');
+  ipcMain.removeAllListeners('tab.switch');
+  ipcMain.removeAllListeners('tab.navigate');
+  ipcMain.removeAllListeners('tab.reload');
+  ipcMain.removeAllListeners('tab.back');
+  ipcMain.removeAllListeners('tab.forward');
+  ipcMain.removeAllListeners('tab.update');
+  ipcMain.removeAllListeners('tabs.get');
+
   ipcMain.on('opacity.get', (event) => {
-    // Multiplying by 100 – browser range is 0 to 100
     event.returnValue = mainWindow.getOpacity() * 100;
   });
 
   ipcMain.on('opacity.set', (event, opacity) => {
-    // Divide by 100 – window range is 0.1 to 1.0
     mainWindow.setOpacity(opacity / 100);
+  });
+
+  ipcMain.on('tab.create', (event, url) => {
+    createTab(url);
+  });
+
+  ipcMain.on('tab.close', (event, tabId) => {
+    closeTab(tabId);
+  });
+
+  ipcMain.on('tab.switch', (event, tabId) => {
+    switchToTab(tabId);
+  });
+
+  ipcMain.on('tab.navigate', (event, { tabId, url }) => {
+    navigateTab(tabId, url);
+  });
+
+  ipcMain.on('tab.update', (event, { tabId, updates }) => {
+    const tabIndex = tabs.findIndex(t => t.id === tabId);
+    if (tabIndex === -1) return;
+
+    const pending = pendingUpdates.get(tabId) || { data: {}, timer: null };
+    Object.assign(pending.data, updates);
+
+    if (!pending.timer) {
+      pending.timer = setTimeout(() => {
+        const tab = tabs[tabIndex];
+        let hasChanges = false;
+
+        for (const [key, value] of Object.entries(pending.data)) {
+          if (tab[key] !== value) {
+            tab[key] = value;
+            hasChanges = true;
+          }
+        }
+
+        if (hasChanges) {
+          sendTabsUpdate();
+        }
+
+        pendingUpdates.delete(tabId);
+      }, 64);
+    }
+
+    pendingUpdates.set(tabId, pending);
+  });
+
+  ipcMain.on('tabs.get', (event) => {
+    event.returnValue = {
+      tabs: tabs.map(t => ({
+        id: t.id,
+        url: t.url,
+        title: t.title,
+        favicon: t.favicon,
+        loading: t.loading
+      })),
+      activeTabId: activeTabId
+    };
   });
 }
 
-// Makes the app start receiving the mouse interactions again
+function ensureOverlayState(win) {
+  if (!win) return;
+
+  win.setVisibleOnAllWorkspaces(true, {
+    visibleOnFullScreen: true,
+    skipTransformProcessType: true
+  });
+
+  win.setAlwaysOnTop(true, 'pop-up-menu');
+
+  if (process.platform === 'darwin') {
+    win.setAlwaysOnTop(true, 'pop-up-menu', 1);
+  }
+}
+
 function disableDetachedMode() {
   app.dock && app.dock.setBadge('');
   mainWindow && mainWindow.setIgnoreMouseEvents(false);
+}
+
+function toggleWindow() {
+  if (!mainWindow) return;
+
+  if (isWindowVisible) {
+    mainWindow.hide();
+    isWindowVisible = false;
+  } else {
+    if (mainWindow.isMinimized()) {
+      mainWindow.restore();
+    }
+
+    const cursorPoint = screen.getCursorScreenPoint();
+    const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
+    const windowBounds = mainWindow.getBounds();
+    const { x, y, width, height } = currentDisplay.workArea;
+
+    const newX = Math.max(x, Math.min(windowBounds.x, x + width - windowBounds.width));
+    const newY = Math.max(y, Math.min(windowBounds.y, y + height - windowBounds.height));
+
+    if (newX !== windowBounds.x || newY !== windowBounds.y) {
+      mainWindow.setBounds({ x: newX, y: newY });
+    }
+
+    ensureOverlayState(mainWindow);
+    mainWindow.showInactive();
+
+    if (typeof mainWindow.moveTop === 'function') {
+      mainWindow.moveTop();
+    }
+
+    mainWindow.focus();
+    isWindowVisible = true;
+  }
 }
 
 function checkAndDownloadUpdate() {
@@ -110,17 +433,14 @@ function checkAndDownloadUpdate() {
   }
 }
 
-/**
- * Starts the server on 127.0.0.1:6280 that accepts the URL and loads
- * that URL in the application
- */
 function listenUrlLoader() {
   const server = http.createServer((request, response) => {
     let target_url = url.parse(request.url, true).query.url;
     target_url = Array.isArray(target_url) ? target_url.pop() : target_url;
 
     if (target_url) {
-      mainWindow.webContents.send('url.requested', target_url);
+      // Create new tab with the URL
+      createTab(target_url);
     }
 
     response.writeHeader(200);
@@ -130,28 +450,139 @@ function listenUrlLoader() {
   server.listen(6280, '0.0.0.0');
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.on('ready', function () {
+function createTray() {
+  const iconPath = path.join(__dirname, 'img/iconTemplate.png');
+  const icon = nativeImage.createFromPath(iconPath);
+
+  tray = new Tray(icon);
+  tray.setToolTip('Archy - Floating Browser');
+
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Show/Hide Window',
+      click: () => {
+        toggleWindow();
+      }
+    },
+    {
+      label: 'New Tab',
+      accelerator: 'CmdOrCtrl+T',
+      click: () => {
+        createTab('');
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Settings',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.webContents.send('nav.show');
+        }
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      accelerator: 'CmdOrCtrl+Q',
+      click: () => {
+        app.quit();
+      }
+    }
+  ]);
+
+  tray.on('click', () => {
+    toggleWindow();
+  });
+
+  tray.on('right-click', () => {
+    tray.popUpContextMenu(contextMenu);
+  });
+}
+
+app.commandLine.appendSwitch('disable-renderer-backgrounding');
+app.commandLine.appendSwitch('disable-background-timer-throttling');
+app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+
+app.on('ready', async function () {
+  if (app.dock) {
+    app.dock.hide();
+  }
+
+  const ses = session.fromPartition('persist:direct');
+
+  await ses.setProxy({ mode: 'system' });
+  await ses.clearCache();
+  await ses.clearHostResolverCache();
+
+  try {
+    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
+      enableCompression: true,
+    });
+    blocker.enableBlockingInSession(ses);
+  } catch (error) {
+    console.error('[AdBlock] Failed to initialize:', error);
+  }
+
+  app.commandLine.appendSwitch('disable-quic');
+
+  try {
+    ses.preconnect({ url: 'https://www.google.com', numSockets: 4 });
+  } catch (e) {}
+
   createWindow();
+  createTray();
   checkAndDownloadUpdate();
   listenUrlLoader();
+
+  globalShortcut.register('Control+Alt+Shift+0', () => {
+    toggleWindow();
+  });
+
+  app.on('web-contents-created', (event, contents) => {
+    bindShortcutsToWebContents(contents);
+
+    if (contents.getType && contents.getType() === 'webview') {
+      try {
+        contents.setBackgroundColor('#FFF8F9FA');
+      } catch (e) {}
+
+      contents.setWindowOpenHandler(({ url }) => {
+        if (url) {
+          createTab(url);
+        }
+        return { action: 'deny' };
+      });
+    }
+  });
 });
 
-// Make the window start receiving mouse events on focus/activate
 app.on('browser-window-focus', disableDetachedMode);
-app.on('activate', disableDetachedMode);
 
-// Quit when all windows are closed.
+app.on('activate', function () {
+  disableDetachedMode();
+
+  if (mainWindow) {
+    ensureOverlayState(mainWindow);
+
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+
+    if (typeof mainWindow.moveTop === 'function') {
+      mainWindow.moveTop();
+    }
+    mainWindow.focus();
+  } else {
+    createWindow();
+  }
+});
+
 app.on('window-all-closed', function () {
   app.quit();
 });
 
-app.on('activate', function () {
-  // On OS X it's common to re-create a window in the app when the
-  // dock icon is clicked and there are no other windows open.
-  if (mainWindow === null) {
-    createWindow();
-  }
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
 });

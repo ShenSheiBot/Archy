@@ -1,9 +1,9 @@
 import React from 'react';
 import debounce from 'lodash.debounce';
 
-import './style.scss';
+import './style.css';
 
-const { ipcRenderer } = window.require('electron');
+const { ipcRenderer } = window.electron;
 
 class Settings extends React.Component {
   state = {
@@ -39,11 +39,8 @@ class Settings extends React.Component {
   render() {
     return (
       <div className='settings-wrap'>
-        <div className="setting-controls">
-          <div className="setting-control opacity-picker">
-            <label htmlFor="opacity-picker"><i className="fa fa-lightbulb-o"/></label>
-            <input type="range" onChange={ this.onOpacityChange } value={ this.state.opacity } min="20" max="100" className="slider" id="opacity-picker"/>
-          </div>
+        <div className="setting-control opacity-picker">
+          <input type="range" onChange={ this.onOpacityChange } value={ this.state.opacity } min="20" max="100" className="slider" id="opacity-picker"/>
         </div>
       </div>
     );

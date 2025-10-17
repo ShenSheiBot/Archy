@@ -103,18 +103,31 @@ const prepareDailyMotionUrl = (url) => {
 export const prepareUrl = function (url, useembedVideos = true) {
   url = url.trim();
   if (!url) {
-    return '';
+    return null;
   }
 
-  // Search on google if not a URL
-  if (!isUrl(url) && !isUrl(`http://${url}`)) {
-    return `https://www.google.com/search?q=${url}`;
+  // Check if it's a valid URL or could be one with http:// prefix
+  const hasProtocol = /^https?:\/\//i.test(url);
+  const hasFileProtocol = /^file:\/\/\//i.test(url);
+
+  // If it has a protocol, it's definitely a URL
+  if (hasProtocol || hasFileProtocol) {
+    url = hasProtocol || hasFileProtocol ? url : `http://${url}`;
+  } else {
+    // Check if it looks like a domain (e.g., google.com, localhost:3000)
+    const isDomainLike = /^[a-zA-Z0-9][\w-]*(\.[a-zA-Z]{2,})+/.test(url) ||
+                         /^localhost(:\d+)?$/.test(url) ||
+                         /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/.test(url);
+
+    if (isDomainLike) {
+      url = `http://${url}`;
+    } else {
+      // Not a URL, treat as search query
+      return `https://www.google.com/search?q=${encodeURIComponent(url)}`;
+    }
   }
 
-  url = /^http(s)?:\/\//.test(url) || /^file:\/\/\//.test(url) ? url : `http://${url}`;
-
-  // Magic URLs turn a normal link to embed link for some video streaming services,
-  // return the normal URL if that is not required
+  // Magic URLs turn a normal link to embed link for some video streaming services
   if (!useembedVideos) {
     return url;
   }

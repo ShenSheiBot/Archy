@@ -1,131 +1,134 @@
-<p align="center">
-  <img src="https://i.imgur.com/bKsns66.png" height="148">
-  <h2 align="center">Pennywise</h2>
-  <p align="center">Cross-platform application to open website or media in a floating window<p>
+<div align="center">
+  <img src="public/img/background-less.png" height="148" />
+  <h2 align="center">Archy</h2>
+  <p align="center">Cross-platform floating window browser</p>
   <p align="center">
-    <a href="https://github.com/kamranahmedse/pennywise/blob/master/license">
-      <img src="https://img.shields.io/badge/License-MIT-yellow.svg" />
-    </a>
-    <a href="https://github.com/kamranahmedse/pennywise/releases">
-    	<img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue.svg" alt="platforms" />
-    </a>
-    <a href="https://github.com/kamranahmedse/pennywise/releases">
-	    <img src="https://img.shields.io/github/downloads/kamranahmedse/pennywise/total.svg" alt="prs welcome">
+    <a href="https://github.com/ShenSheiBot/archy/blob/master/license">
+      <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="license">
     </a>
   </p>
-</p>
+</div>
 
-Pennywise opens any website or media in a **small floating window that remains on top of all other applications**. Pennywise windows stays up **all the time**. No need to keep struggling with <kbd>alt + tab</kbd>, use Pennywise for **easy multitasking**.
+---
+
+Archy opens any website or media in a **small floating window that remains on top of all other applications**. The window stays up **all the time**. No more <kbd>alt + tab</kbd> switching – use Archy for **easy multitasking**.
+
+**Inspired by [Archytas's pigeon](https://en.wikipedia.org/wiki/Archytas#The_flying_dove)** – the world's first self-propelled flying automaton, created around 400 BC.
+
+---
 
 ## Features
+
 * Always **stays on top** of any open applications
-* **Adjustable opacity** – it gets out of your way while you work
-* **Resize and place** it anywhere
-* **Shortcuts** to make you more productive
-* Lets you **multitask** while you work
-* **Open source** licensed under MIT
-* **Lean** small resource footprint, minimal User Interface.
-* **Cross-platform** works on MacOS, Windows and Linux
+* **Customizable opacity** – gets out of your way while you work
+* **Multi-tab support** with keyboard shortcuts
+* **Menu bar icon** – no dock clutter
+* **Detached mode** for click-through
+* **Frameless window** option
+* **Cross-platform** – macOS, Windows, Linux
+* **Lean** – minimal resource footprint
 
 ## Installation
 
-Download and install the relevant distribution from the [releases page](http://github.com/kamranahmedse/pennywise/releases).
+### macOS
 
-If you are on MacOS, you can use [Homebrew](https://brew.sh/) to install it
-
-```
-brew install --cask pennywise
-```
-
-### Enable Flash Support
-
-To enable flash support, copy or link Chrome's Pepperflash plugin into your $HOME/.pennywise-flash. You can find the plugin at the installation path of the Chrome. For example, on MacOS, you can do the below to enable Flash support
-
-```
-ln -s ~/Library/Application\ Support/Google/Chrome/PepperFlash/[version]/PepperFlashPlayer.plugin" ~/.pennywise-flash
+```bash
+# Build from source
+git clone https://github.com/ShenSheiBot/archy.git
+cd archy
+npm install
+npm run build
+npm run electron:build
 ```
 
-## Usecases
+The built app will be in `dist/` directory.
 
-> Here is the list of some of the possible use cases off the top of my head
+## Usage
 
-* Use it as a floating window for your calendar/checklist/assigned-tickets etc
-* Watching tutorial while you code? Open the video in Pennywise and keep it in front of you
-* Making a video course? Open the demo in Pennywise and show the output in real time
-* Working on some web UI? Open it in Pennywise to avoid pressing <kbd>alt + tab</kbd> again and again
-* Play some video, watch some talk or play some TV series while you work
-* Working on something non-familiar? Open the docs in Pennywise
-* Open that live football match that you won't want to miss
-* Use it as a desktop widget
+### Keyboard Shortcuts
+
+* **Global Toggle**: <kbd>Ctrl+Alt+Shift+0</kbd> – Show/hide window from anywhere
+* **New Tab**: <kbd>Cmd/Ctrl+T</kbd>
+* **Close Tab**: <kbd>Cmd/Ctrl+W</kbd>
+* **Next Tab**: <kbd>Ctrl+Tab</kbd>
+* **Previous Tab**: <kbd>Ctrl+Shift+Tab</kbd>
+* **Detached Mode**: <kbd>Cmd/Ctrl+Shift+D</kbd> – Makes window non-interactive (click-through)
+* **Toggle Navbar**: <kbd>Cmd/Ctrl+Shift+L</kbd>
+* **Focus URL**: <kbd>Cmd/Ctrl+L</kbd>
+* **Refresh**: <kbd>Cmd/Ctrl+R</kbd>
+
+### Menu Bar
+
+* **Left-click**: Toggle window visibility
+* **Right-click**: Open context menu
+
+### Opacity Control
+
+* **Menu**: View → Set Opacity (10%-100%)
+* **Shortcuts**: <kbd>Cmd/Ctrl+Shift+Up/Down</kbd> – Increase/decrease by 10%
+* **Direct**: <kbd>Cmd/Ctrl+1-9,0</kbd> – Set to 10%-100%
+
+### Frameless Mode
+
+Toggle window frame (removes title bar):
+```bash
+# Launch without frame
+archy --frameless
+```
+
+Or use menu: View → Frameless Window → <kbd>Cmd/Ctrl+Shift+F</kbd> (requires restart)
+
+## Use Cases
+
+* **Coding tutorials** – Watch while you code
+* **Documentation** – Keep docs visible
+* **Video courses** – Follow along with demos
+* **UI development** – See live output without switching
+* **Monitoring** – Keep dashboards in view
+* **Multi-tasking** – Any content that needs to stay visible
+
+## Why "Archy"?
+
+Named after [**Archytas of Tarentum**](https://en.wikipedia.org/wiki/Archytas) (428–347 BC), a Greek mathematician, philosopher, and engineer who built the world's first self-propelled flying device – a wooden pigeon powered by steam or compressed air. Like his creation that stayed aloft above the ground, Archy keeps your windows floating above all other apps.
 
 ## Development
 
-Clone the repository, install the dependencies and start the app
-
 ```bash
-yarn install
-yarn start
+# Install dependencies
+npm install
+
+# Run in development mode
+npm run dev
+npm run electron:dev
+
+# Build for production
+npm run build
+npm run electron:build
 ```
 
-## Shortcuts
+## Advanced Features
 
-> Here is the list of available shortcuts that you may use
+### Detached Mode
 
-| **Shortcut**                       | **Description**                  |
-|------------------------------------|----------------------------------|
-| <kbd>Cmd/Ctrl + L</kbd>            | Show Navbar and focus URL input  |
-| <kbd>Cmd/Ctrl + Shift + D</kbd>    | Enable detached mode             |
-| <kbd>Cmd/Ctrl + M</kbd>            | Refresh Page                     |
-| <kbd>Cmd/Ctrl + Shift + L</kbd>    | Toggle Navbar on WebPages        |
-| <kbd>Cmd/Ctrl + Shift + Up</kbd>   | Increase Opacity                 |
-| <kbd>Cmd/Ctrl + Shift + Down</kbd> | Decrease Opacity                 |
-| <kbd>Cmd/Ctrl + Alt + I</kbd>      | Show Developer Tools             |
-| <kbd>Cmd/Ctrl + [0-9]</kbd>        | Switch Window Opacity            |
+When enabled (<kbd>Cmd/Ctrl+Shift+D</kbd>), the window becomes non-interactive and lets all clicks pass through to apps below it. To exit detached mode:
+* Click the menu bar icon
+* Use <kbd>Alt+Tab</kbd> to focus the window
 
-> **Note** – Changing the opacity is only supported in Windows and MacOS
+### Video Embedding
 
-**Detached Mode** 
-* Enabling the detached mode makes Pennywise non-interactive – it will let any interactions fall through to the window below it. To remove the detached mode, focus the window either by clicking the dock icon or by activating it using <kbd>alt + tab</kbd>
+For streaming sites (YouTube, Vimeo, Twitch, etc.), Archy can show video-only pages using auto-generated embed links. Toggle via: Edit → Embed Videos
 
-## Screenshots
+**Note**: Some YouTube videos may not work with embedding enabled due to user restrictions. Disable "Embed Videos" if needed.
 
-> Homescreen for the application
+## Credits
 
-![](https://i.imgur.com/u7fAT99.png)
-
-![](https://i.imgur.com/CeLYoux.png?1)
-
-> Anything running in pennywise stays on top of everything
-
-![](https://i.imgur.com/BbqZmcK.png)
-
-![](https://i.imgur.com/8VDKGYX.png)
-
-> You can change the opacity too
-
-![](https://i.imgur.com/Xa7inTY.png)
-
-![](https://i.imgur.com/9D3gZwn.png)
-
-## Auto-embed Videos
-For some video streaming websites such as Youtube, Vimeo, Twitch, Daily Motion etc, Pennywise shows you the video only web page by default (using the auto-generated embed links), showing you the video in a distract free manner. You can disable that by toggling the `Edit > Embed Videos`.
-
-> **Note** – In case of youtube, [it might not work sometime](https://github.com/kamranahmedse/pennywise/issues/62) when the user has put restrictions on the video – in that case, you will have to disable "Auto Embed" option from the Edit menu to make them work. 
-
-#### Why is it named Pennywise?
-
-Because the application helps in floating and [Pennywise loved to do that](http://www.youtube.com/watch?v=WzjWMLv_ZJI&t=3m15s)
-
-![](https://i.imgur.com/bN2ixL7.gif)
-
-## Planned Roadmap
-
-* [ ] Persist options and linking options to website
-* [ ] Bookmarking links for later use
-* [ ] Write tests
-
-## Contributions
-Feel free to implement anything from the roadmap, submit pull requests, create issues, discuss ideas or spread the word.
-
+Originally based on [Pennywise](https://github.com/kamranahmedse/pennywise) by Kamran Ahmed.
 ## License
-MIT &copy; [Kamran Ahmed](https://twitter.com/kamranahmedse)
+
+MIT © [See License](license)
+
+---
+
+<p align="center">
+  <i>Like Archytas's pigeon, Archy floats above it all</i>
+</p>

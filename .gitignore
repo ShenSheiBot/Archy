@@ -1,13 +1,43 @@
+# Dependencies
 /node_modules
+node_modules/
+
+# Testing
 /coverage
+
+# Production build
 /build
-.DS_Store
+/dist
+dist-electron/
+
+# Environment variables
+.env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+
+# Logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
 .idea
-dist
+.vscode
+*.swp
+*.swo
+*~
+
+# Claude Code
+.claude/settings.local.json
