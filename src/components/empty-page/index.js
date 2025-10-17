@@ -1,8 +1,10 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-import archyIcon from '../../../public/img/background-less.png';
 import './style.css';
+
+// Use public URL directly instead of import for assets in public directory
+const archyIcon = '/img/background-less.png';
 
 class EmptyPage extends React.Component {
   onKeyPress = (e) => {
