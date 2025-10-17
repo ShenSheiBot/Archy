@@ -55,6 +55,12 @@ class Settings extends React.Component {
     console.log(`[Settings] Sent theme.set with: ${nextTheme}`);
   };
 
+  onHideNavbar = () => {
+    if (this.props.onHideNavbar) {
+      this.props.onHideNavbar();
+    }
+  };
+
   getThemeIcon = () => {
     const { theme } = this.state;
     if (theme === 'system') {
@@ -195,6 +201,11 @@ class Settings extends React.Component {
               </div>
             )}
           </div>
+        </div>
+        <div className="setting-control hide-navbar">
+          <button className="btn-hide-navbar" onClick={this.onHideNavbar} title="Hide Navbar">
+            <i className="fa fa-eye-slash"/>
+          </button>
         </div>
       </div>
     );

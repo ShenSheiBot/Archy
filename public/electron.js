@@ -390,7 +390,12 @@ function bindIpc() {
     switchTab: (tabId) => switchToTab(tabId),
     navigateTab: (tabId, url) => navigateTab(tabId, url),
     updateTab: (tabId, updates) => tabManager.updateTab(tabId, updates, sendTabsUpdate),
-    getTabs: () => tabManager.getTabsData()
+    getTabs: () => tabManager.getTabsData(),
+    relayToRenderer: (channel, ...args) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, ...args);
+      }
+    }
   });
 }
 

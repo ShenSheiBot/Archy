@@ -90,4 +90,57 @@ html[data-theme="dark"] .webview-container {
   z-index: 10000 !important;
 }
 
+/* Restore navbar button */
+.restore-navbar-btn {
+  position: fixed;
+  top: 8px;
+  right: 8px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: none;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 8px 12px;
+  border-radius: 6px;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 36px;
+  height: 36px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.restore-navbar-btn:hover {
+  background: rgba(0, 0, 0, 0.4);
+  transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.restore-navbar-btn:active {
+  transform: scale(0.95);
+}
+
+@media (prefers-color-scheme: dark) {
+  .restore-navbar-btn {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+  }
+  .restore-navbar-btn:hover {
+    background: rgba(255, 255, 255, 0.25);
+  }
+}
+
+html[data-theme="dark"] .restore-navbar-btn {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.95);
+}
+
+html[data-theme="dark"] .restore-navbar-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
 /*# sourceMappingURL=style.css.map */

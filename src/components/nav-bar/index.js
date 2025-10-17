@@ -192,6 +192,13 @@ class NavBar extends Component {
     );
   }
 
+  handleHideNavbar = () => {
+    // Close settings panel first
+    this.setState({ settingsShown: false });
+    // Then hide navbar
+    ipcRenderer.send('nav.hide');
+  };
+
   renderSettingsPanel() {
     if (!this.state.settingsShown) {
       return null;
@@ -199,7 +206,7 @@ class NavBar extends Component {
 
     return (
       <div className="settings-panel-floating">
-        <Settings/>
+        <Settings onHideNavbar={this.handleHideNavbar}/>
         <button className="btn-settings-close" onClick={this.toggleSettings}>
           <i className="fa fa-times"/>
         </button>

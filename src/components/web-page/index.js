@@ -21,28 +21,35 @@ class WebPage extends React.Component {
     }));
   };
 
-  showNavBar = () => {
+  // Internal method - only updates state (called from IPC events)
+  showNavBarInternal = () => {
     this.setState({
       showNav: true
     });
   };
 
-  hideNavBar = () => {
+  hideNavBarInternal = () => {
     this.setState({
       showNav: false
     });
   };
 
+  // Public method - only sends IPC (called from restore button)
+  // The IPC relay will trigger showNavBarInternal to update state
+  showNavBar = () => {
+    ipcRenderer.send('nav.show');
+  };
+
   bindNavBar() {
     ipcRenderer.on('nav.toggle', this.toggleNavBar);
-    ipcRenderer.on('nav.show', this.showNavBar);
-    ipcRenderer.on('nav.hide', this.hideNavBar);
+    ipcRenderer.on('nav.show', this.showNavBarInternal);
+    ipcRenderer.on('nav.hide', this.hideNavBarInternal);
   }
 
   unbindNavBar() {
     ipcRenderer.removeListener('nav.toggle', this.toggleNavBar);
-    ipcRenderer.removeListener('nav.show', this.showNavBar);
-    ipcRenderer.removeListener('nav.hide', this.hideNavBar);
+    ipcRenderer.removeListener('nav.show', this.showNavBarInternal);
+    ipcRenderer.removeListener('nav.hide', this.hideNavBarInternal);
   }
 
   setupWebviewListeners = (webview, tabId) => {
@@ -310,6 +317,15 @@ class WebPage extends React.Component {
             getActiveWebview={ this.getActiveWebview }
           />
         </div>
+        {!this.state.showNav && (
+          <button
+            className="restore-navbar-btn"
+            onClick={this.showNavBar}
+            title="Show Navbar"
+          >
+            <i className="fa fa-eye"/>
+          </button>
+        )}
         <div className="webview-container">
           {tabs.map(tab => {
             return (

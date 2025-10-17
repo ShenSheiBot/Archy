@@ -23,7 +23,8 @@ function bindIpcHandlers(handlers) {
     switchTab,
     navigateTab,
     updateTab,
-    getTabs
+    getTabs,
+    relayToRenderer
   } = handlers;
 
   // Remove all existing listeners to avoid duplicates
@@ -43,6 +44,10 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('tab.forward');
   ipcMain.removeAllListeners('tab.update');
   ipcMain.removeAllListeners('tabs.get');
+  ipcMain.removeAllListeners('nav.hide');
+  ipcMain.removeAllListeners('nav.show');
+  ipcMain.removeAllListeners('nav.toggle');
+  ipcMain.removeAllListeners('settings.toggle');
 
   // Opacity handlers
   ipcMain.on('opacity.get', (event) => {
@@ -101,6 +106,39 @@ function bindIpcHandlers(handlers) {
 
   ipcMain.on('tabs.get', (event) => {
     event.returnValue = getTabs();
+  });
+
+  // Navbar relay handlers - relay messages from renderer to renderer
+  ipcMain.on('nav.hide', (event) => {
+    // Get the window that sent this message
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Hide macOS traffic lights on macOS
+    if (process.platform === 'darwin' && win) {
+      win.setWindowButtonVisibility(false);
+    }
+
+    relayToRenderer('nav.hide');
+  });
+
+  ipcMain.on('nav.show', (event) => {
+    // Get the window that sent this message
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Show macOS traffic lights on macOS
+    if (process.platform === 'darwin' && win) {
+      win.setWindowButtonVisibility(true);
+    }
+
+    relayToRenderer('nav.show');
+  });
+
+  ipcMain.on('nav.toggle', () => {
+    relayToRenderer('nav.toggle');
+  });
+
+  ipcMain.on('settings.toggle', (event, isShown) => {
+    relayToRenderer('settings.toggle', isShown);
   });
 }
 

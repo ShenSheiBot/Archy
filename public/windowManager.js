@@ -107,6 +107,11 @@ function toggleWindow(mainWindow) {
     mainWindow.setIgnoreMouseEvents(false);
     mainWindow.webContents.send('nav.show');
 
+    // Restore macOS traffic lights when exiting detached mode
+    if (process.platform === 'darwin') {
+      mainWindow.setWindowButtonVisibility(true);
+    }
+
     // Force redraw to fix blurry text
     forceRedraw(mainWindow);
   }
@@ -119,7 +124,13 @@ function toggleWindow(mainWindow) {
  */
 function disableDetachedMode(mainWindow, app) {
   app.dock && app.dock.setBadge('');
-  mainWindow && mainWindow.setIgnoreMouseEvents(false);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.setIgnoreMouseEvents(false);
+    // Restore macOS traffic lights when disabling detached mode
+    if (process.platform === 'darwin') {
+      mainWindow.setWindowButtonVisibility(true);
+    }
+  }
 }
 
 module.exports = {
