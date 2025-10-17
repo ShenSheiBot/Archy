@@ -56,6 +56,8 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('startup.behavior.set');
   ipcMain.removeAllListeners('startup.url.get');
   ipcMain.removeAllListeners('startup.url.set');
+  ipcMain.removeAllListeners('fullscreen.enter');
+  ipcMain.removeAllListeners('fullscreen.leave');
 
   // Opacity handlers
   ipcMain.on('opacity.get', (event) => {
@@ -166,6 +168,21 @@ function bindIpcHandlers(handlers) {
   ipcMain.on('startup.url.set', (event, url) => {
     console.log(`[IPC] Received startup.url.set: ${url}`);
     setStartupUrl(url);
+  });
+
+  // Fullscreen handlers - hide/show traffic lights
+  ipcMain.on('fullscreen.enter', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (process.platform === 'darwin' && win) {
+      win.setWindowButtonVisibility(false);
+    }
+  });
+
+  ipcMain.on('fullscreen.leave', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (process.platform === 'darwin' && win) {
+      win.setWindowButtonVisibility(true);
+    }
   });
 }
 

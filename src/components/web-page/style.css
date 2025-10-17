@@ -90,6 +90,19 @@ html[data-theme="dark"] .webview-container {
   z-index: 10000 !important;
 }
 
+/* Drag area when navbar is hidden */
+.drag-area {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  z-index: 99;
+  -webkit-app-region: drag;
+  background: transparent;
+  pointer-events: auto;
+}
+
 /* Restore navbar button */
 .restore-navbar-btn {
   position: fixed;
@@ -112,6 +125,7 @@ html[data-theme="dark"] .webview-container {
   min-width: 36px;
   height: 36px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  -webkit-app-region: no-drag;
 }
 
 .restore-navbar-btn:hover {

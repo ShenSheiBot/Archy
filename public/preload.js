@@ -22,7 +22,9 @@ contextBridge.exposeInMainWorld('electron', {
         'nav.toggle',
         'settings.toggle',
         'startup.behavior.set',
-        'startup.url.set'
+        'startup.url.set',
+        'fullscreen.enter',
+        'fullscreen.leave'
         // reload, back, forward, search are handled directly by webview in renderer
       ];
       if (validChannels.includes(channel)) {
