@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell } = require('electron');
+const { app, BrowserWindow, BrowserView, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const pdfWindow = require('electron-pdf-window');
 const path = require('path');
@@ -36,6 +36,63 @@ let nextTabId = 1;
 let tabShortcutsBound = false;
 
 const pendingUpdates = new Map();
+
+// Theme state management
+let currentTheme = 'system';  // 'system', 'light', 'dark'
+
+function applyTheme(theme) {
+  currentTheme = theme;
+
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  let effectiveTheme = theme;
+
+  if (theme === 'system') {
+    // Use system preference
+    effectiveTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+  }
+
+  console.log(`[Theme] Applying theme: ${theme} (effective: ${effectiveTheme})`);
+
+  // Wait for webContents to be ready
+  if (mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      applyTheme(theme);
+    });
+    return;
+  }
+
+  // Apply theme to renderer
+  mainWindow.webContents.executeJavaScript(`
+    console.log('[Theme] Setting data-theme to: ${effectiveTheme}');
+    document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
+    console.log('[Theme] Current data-theme:', document.documentElement.getAttribute('data-theme'));
+  `).then(() => {
+    console.log(`[Theme] Successfully set data-theme to: ${effectiveTheme}`);
+  }).catch(err => {
+    console.error('[Theme] Failed to apply theme:', err);
+  });
+
+  // Update background color for window and all existing webviews
+  const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
+
+  // Update main window background
+  try {
+    mainWindow.setBackgroundColor(bgColor);
+  } catch (e) {}
+
+  // Update all webviews
+  const allWebContents = require('electron').webContents.getAllWebContents();
+  allWebContents.forEach(wc => {
+    try {
+      if (wc.getType() === 'webview') {
+        wc.setBackgroundColor(bgColor);
+      }
+    } catch (e) {
+      // Webview might be destroyed
+    }
+  });
+}
 
 function ensureDevtoolsWindowFor(wc, hostWindow) {
   if (!wc || wc.isDestroyed()) return;
@@ -90,14 +147,23 @@ function createWindow() {
       webviewTag: true,
       webSecurity: true,
       sandbox: false,
-      backgroundThrottling: false
+      backgroundThrottling: false,
+      disableBlinkFeatures: 'Accelerated2dCanvas'  // Fix subpixel rendering on transparent windows
     },
   };
 
+  // Set initial background color based on current theme
+  const effectiveTheme = currentTheme === 'system'
+    ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
+    : currentTheme;
+
+  const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
+
   if (process.platform === 'darwin') {
-    windowOptions.backgroundColor = '#F8F9FA';
+    windowOptions.backgroundColor = bgColor;
   } else {
-    windowOptions.backgroundColor = '#F0F8F9FA';
+    // Alpha channel for transparency on other platforms
+    windowOptions.backgroundColor = effectiveTheme === 'dark' ? '#F01c1c1e' : '#F0F8F9FA';
   }
 
   mainWindow = new BrowserWindow(windowOptions);
@@ -115,6 +181,9 @@ function createWindow() {
     const platform = process.platform;
     const jsCode = `document.body.classList.add('platform-${platform}');`;
     mainWindow.webContents.executeJavaScript(jsCode);
+
+    // Apply initial theme
+    applyTheme(currentTheme);
   });
 
   mainWindow.on('ready-to-show', () => {
@@ -137,6 +206,10 @@ function createWindow() {
   ['enter-full-screen', 'leave-full-screen', 'restore', 'show'].forEach(evt => {
     mainWindow.on(evt, () => {
       ensureOverlayState(mainWindow);
+      // Force redraw to prevent blurry text after state changes
+      if (evt === 'show' || evt === 'restore') {
+        setImmediate(() => forceRedraw(mainWindow));
+      }
     });
   });
 
@@ -292,6 +365,8 @@ function bindTabShortcuts() {
 function bindIpc() {
   ipcMain.removeAllListeners('opacity.get');
   ipcMain.removeAllListeners('opacity.set');
+  ipcMain.removeAllListeners('theme.get');
+  ipcMain.removeAllListeners('theme.set');
   ipcMain.removeAllListeners('tab.create');
   ipcMain.removeAllListeners('tab.close');
   ipcMain.removeAllListeners('tab.switch');
@@ -308,6 +383,15 @@ function bindIpc() {
 
   ipcMain.on('opacity.set', (event, opacity) => {
     mainWindow.setOpacity(opacity / 100);
+  });
+
+  ipcMain.on('theme.get', (event) => {
+    event.returnValue = currentTheme;
+  });
+
+  ipcMain.on('theme.set', (event, theme) => {
+    console.log(`[IPC] Received theme.set: ${theme}`);
+    applyTheme(theme);
   });
 
   ipcMain.on('tab.create', (event, url) => {
@@ -390,6 +474,22 @@ function disableDetachedMode() {
   mainWindow && mainWindow.setIgnoreMouseEvents(false);
 }
 
+function forceRedraw(win) {
+  if (!win || win.isDestroyed()) return;
+
+  // Force compositor refresh on macOS to fix blurry text after show/hide
+  if (process.platform === 'darwin') {
+    const bounds = win.getBounds();
+    // Trigger a minimal resize to force redraw
+    win.setBounds({ ...bounds, height: bounds.height + 1 });
+    setImmediate(() => {
+      if (!win.isDestroyed()) {
+        win.setBounds(bounds);
+      }
+    });
+  }
+}
+
 function toggleWindow() {
   if (!mainWindow) return;
 
@@ -414,14 +514,20 @@ function toggleWindow() {
     }
 
     ensureOverlayState(mainWindow);
-    mainWindow.showInactive();
+    mainWindow.show();  // Changed from showInactive() to show() for better rendering
 
     if (typeof mainWindow.moveTop === 'function') {
       mainWindow.moveTop();
     }
 
+    // Force focus on main window to ensure keyboard shortcuts work immediately
     mainWindow.focus();
+    app.focus({ steal: true });
+
     isWindowVisible = true;
+
+    // Force redraw to fix blurry text
+    forceRedraw(mainWindow);
   }
 }
 
@@ -510,6 +616,13 @@ app.on('ready', async function () {
     app.dock.hide();
   }
 
+  // Listen for system theme changes
+  nativeTheme.on('updated', () => {
+    if (currentTheme === 'system') {
+      applyTheme('system');
+    }
+  });
+
   const ses = session.fromPartition('persist:direct');
 
   await ses.setProxy({ mode: 'system' });
@@ -545,7 +658,13 @@ app.on('ready', async function () {
 
     if (contents.getType && contents.getType() === 'webview') {
       try {
-        contents.setBackgroundColor('#FFF8F9FA');
+        // Set webview background based on current theme
+        const effectiveTheme = currentTheme === 'system'
+          ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
+          : currentTheme;
+
+        const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
+        contents.setBackgroundColor(bgColor);
       } catch (e) {}
 
       contents.setWindowOpenHandler(({ url }) => {

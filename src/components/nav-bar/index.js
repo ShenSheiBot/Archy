@@ -179,17 +179,29 @@ class NavBar extends Component {
     }
   }
 
-  renderSettings() {
+  renderSettingsButton() {
     const supportsOpacity = this.platform === 'darwin' || /^win/.test(this.platform);
     if (!supportsOpacity) {
       return null;
     }
 
     return (
-      <div className="settings-inline">
-        { this.state.settingsShown && <Settings/> }
-        <button className="btn-action btn btn-dark" onClick={ this.toggleSettings }>
-          { !this.state.settingsShown ? <i className="fa fa-adjust"/> : <i className="fa fa-times"/> }
+      <button className="btn-action btn btn-dark" onClick={ this.toggleSettings }>
+        <i className="fa fa-cog"/>
+      </button>
+    );
+  }
+
+  renderSettingsPanel() {
+    if (!this.state.settingsShown) {
+      return null;
+    }
+
+    return (
+      <div className="settings-panel-floating">
+        <Settings/>
+        <button className="btn-settings-close" onClick={this.toggleSettings}>
+          <i className="fa fa-times"/>
         </button>
       </div>
     );
@@ -272,10 +284,11 @@ class NavBar extends Component {
               onKeyPress={ this.onKeyPress }
               onFocus={ this.onFocus }
             />
-            { this.renderSettings() }
+            { this.renderSettingsButton() }
           </div>
         </div>
         { this.renderSearchBar() }
+        { this.renderSettingsPanel() }
       </>
     );
   }

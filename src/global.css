@@ -9,6 +9,15 @@ html, body {
   overflow: hidden;
 }
 
+/* Theme support - override @media queries when theme is set manually */
+html[data-theme="dark"] {
+  color: #e0e0e0;
+}
+
+html[data-theme="dark"] body {
+  color: #e0e0e0;
+}
+
 /* Ensure all root containers are transparent and have full height */
 #root {
   width: 100%;

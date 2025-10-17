@@ -4,7 +4,17 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: transparent;
+  background-color: #f8f9fa;
+}
+
+@media (prefers-color-scheme: dark) {
+  .webpage {
+    background-color: #1c1c1e;
+  }
+}
+
+html[data-theme="dark"] .webpage {
+  background-color: #1c1c1e;
 }
 
 .webview-container {
@@ -18,6 +28,16 @@
   min-height: 0;
   /* Background color to prevent transparency during page load */
   background-color: #f8f9fa;
+}
+
+@media (prefers-color-scheme: dark) {
+  .webview-container {
+    background-color: #1c1c1e;
+  }
+}
+
+html[data-theme="dark"] .webview-container {
+  background-color: #1c1c1e;
 }
 
 .webpage.with-nav .webview-container {

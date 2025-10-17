@@ -1,8 +1,7 @@
 .settings-wrap {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 4px;
+  gap: 12px;
 }
 .settings-wrap .setting-control {
   display: flex;
@@ -12,15 +11,69 @@
 .settings-wrap .setting-control:hover {
   opacity: 1;
 }
-.settings-wrap label {
-  margin-bottom: 0;
-  margin-right: 10px;
+
+/* Theme toggle button */
+.settings-wrap .btn-theme {
+  background: transparent;
+  border: none;
+  color: #333;
   font-size: 16px;
-  color: #333333;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s, color 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
 }
-.settings-wrap #width-picker {
-  margin-right: 35px;
+.settings-wrap .btn-theme:hover {
+  background: rgba(0, 0, 0, 0.1);
 }
+.settings-wrap .btn-theme:active {
+  background: rgba(0, 0, 0, 0.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-wrap .btn-theme {
+    color: #e0e0e0;
+  }
+  .settings-wrap .btn-theme:hover {
+    background: rgba(255, 255, 255, 0.1);
+  }
+  .settings-wrap .btn-theme:active {
+    background: rgba(255, 255, 255, 0.15);
+  }
+}
+
+/* Override for manual dark theme */
+html[data-theme="dark"] .settings-wrap .btn-theme {
+  color: #e0e0e0;
+}
+html[data-theme="dark"] .settings-wrap .btn-theme:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+html[data-theme="dark"] .settings-wrap .btn-theme:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Opacity control */
+.settings-wrap .opacity-icon {
+  color: #666;
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-wrap .opacity-icon {
+    color: #aaa;
+  }
+}
+
+html[data-theme="dark"] .settings-wrap .opacity-icon {
+  color: #aaa;
+}
+
 .settings-wrap .slider {
   -webkit-appearance: none;
   width: 80px;
@@ -34,6 +87,10 @@
   .settings-wrap .slider {
     background: rgba(255, 255, 255, 0.2);
   }
+}
+
+html[data-theme="dark"] .settings-wrap .slider {
+  background: rgba(255, 255, 255, 0.2);
 }
 .settings-wrap .slider::-webkit-slider-thumb {
   -webkit-appearance: none;
