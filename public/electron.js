@@ -47,6 +47,12 @@ const trayManager = require('./trayManager');
 let mainWindow;
 let tabShortcutsBound = false;
 
+// Startup configuration
+let startupConfig = {
+  behavior: 'restore',  // 'blank', 'restore', 'url'
+  url: 'https://www.google.com'
+};
+
 // Save session to disk
 function saveSession() {
   const tabs = tabManager.getTabs();
@@ -58,7 +64,8 @@ function saveSession() {
     })),
     activeTabId: tabManager.getActiveTabId(),
     theme: themeManager.getCurrentTheme(),
-    globalShortcut: shortcutsManager.getCurrentGlobalShortcut()
+    globalShortcut: shortcutsManager.getCurrentGlobalShortcut(),
+    startup: startupConfig
   };
 
   // Save window bounds and opacity if window exists
@@ -93,29 +100,47 @@ function restoreSession() {
     shortcutsManager.setCurrentGlobalShortcut(session.globalShortcut);
   }
 
-  // Restore tabs
-  if (session.tabs && session.tabs.length > 0) {
-    const restoredTabs = [];
-    let nextTabId = 1;
+  // Restore startup configuration
+  if (session.startup) {
+    startupConfig = { ...startupConfig, ...session.startup };
+  }
 
-    session.tabs.forEach((tabData, index) => {
-      const tabId = nextTabId++;
-      const tab = {
-        id: tabId,
-        url: tabData.url || '',
-        title: tabData.title || 'New Tab',
-        favicon: tabData.favicon || null,
-        loading: false
-      };
-      restoredTabs.push(tab);
-    });
+  // Apply startup behavior
+  const behavior = startupConfig.behavior;
 
-    // Set tabs in tabManager (use first tab as active)
-    const activeTabId = restoredTabs.length > 0 ? restoredTabs[0].id : null;
-    tabManager.setTabs(restoredTabs, activeTabId, nextTabId);
-
-    sendTabsUpdate();
+  if (behavior === 'blank') {
+    // Create one blank tab
+    createTab('');
     return true;
+  } else if (behavior === 'url') {
+    // Create tab with custom URL
+    createTab(startupConfig.url || 'https://www.google.com');
+    return true;
+  } else if (behavior === 'restore') {
+    // Restore tabs from session
+    if (session.tabs && session.tabs.length > 0) {
+      const restoredTabs = [];
+      let nextTabId = 1;
+
+      session.tabs.forEach((tabData, index) => {
+        const tabId = nextTabId++;
+        const tab = {
+          id: tabId,
+          url: tabData.url || '',
+          title: tabData.title || 'New Tab',
+          favicon: tabData.favicon || null,
+          loading: false
+        };
+        restoredTabs.push(tab);
+      });
+
+      // Set tabs in tabManager (use first tab as active)
+      const activeTabId = restoredTabs.length > 0 ? restoredTabs[0].id : null;
+      tabManager.setTabs(restoredTabs, activeTabId, nextTabId);
+
+      sendTabsUpdate();
+      return true;
+    }
   }
 
   return false;
@@ -166,6 +191,11 @@ function createWindow() {
   // Try to restore window bounds from saved session
   const savedSession = loadSession();
   const savedBounds = savedSession?.windowBounds;
+
+  // Restore startup configuration early so we can use it in ready-to-show
+  if (savedSession?.startup) {
+    startupConfig = { ...startupConfig, ...savedSession.startup };
+  }
 
   const windowOptions = {
     width: savedBounds?.width || 700,
@@ -244,6 +274,7 @@ function createWindow() {
 
     mainWindow.show();
     windowManager.setWindowVisible(true);
+
     bindTabShortcuts();
   });
 
@@ -395,6 +426,16 @@ function bindIpc() {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(channel, ...args);
       }
+    },
+    getStartupBehavior: () => startupConfig.behavior,
+    setStartupBehavior: (behavior) => {
+      startupConfig.behavior = behavior;
+      saveSession();
+    },
+    getStartupUrl: () => startupConfig.url,
+    setStartupUrl: (url) => {
+      startupConfig.url = url;
+      saveSession();
     }
   });
 }

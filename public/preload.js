@@ -20,7 +20,9 @@ contextBridge.exposeInMainWorld('electron', {
         'nav.hide',
         'nav.show',
         'nav.toggle',
-        'settings.toggle'
+        'settings.toggle',
+        'startup.behavior.set',
+        'startup.url.set'
         // reload, back, forward, search are handled directly by webview in renderer
       ];
       if (validChannels.includes(channel)) {
@@ -62,7 +64,14 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     sendSync: (channel) => {
-      const validChannels = ['opacity.get', 'theme.get', 'shortcut.get', 'tabs.get'];
+      const validChannels = [
+        'opacity.get',
+        'theme.get',
+        'shortcut.get',
+        'tabs.get',
+        'startup.behavior.get',
+        'startup.url.get'
+      ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.sendSync(channel);
       }

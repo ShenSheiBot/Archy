@@ -313,4 +313,103 @@ html[data-theme="dark"] .settings-wrap .btn-hide-navbar:active {
   background: rgba(255, 255, 255, 0.15);
 }
 
+/* Startup options */
+.settings-wrap .startup-icon {
+  color: #666;
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-wrap .startup-icon {
+    color: #aaa;
+  }
+}
+
+html[data-theme="dark"] .settings-wrap .startup-icon {
+  color: #aaa;
+}
+
+.settings-wrap .startup-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-wrap .startup-select {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #333;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 120px;
+}
+
+.settings-wrap .startup-select:hover {
+  background: rgba(0, 0, 0, 0.08);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+
+.settings-wrap .startup-select:focus {
+  outline: none;
+  border-color: #007bff;
+  background: rgba(0, 123, 255, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-wrap .startup-select {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+  }
+  .settings-wrap .startup-select:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+}
+
+html[data-theme="dark"] .settings-wrap .startup-select {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
+html[data-theme="dark"] .settings-wrap .startup-select:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.settings-wrap .startup-url-input {
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: #333;
+  min-width: 180px;
+  transition: all 0.2s;
+}
+
+.settings-wrap .startup-url-input:focus {
+  outline: none;
+  border-color: #007bff;
+  background: rgba(0, 123, 255, 0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  .settings-wrap .startup-url-input {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e0e0e0;
+  }
+}
+
+html[data-theme="dark"] .settings-wrap .startup-url-input {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+}
+
 /*# sourceMappingURL=style.css.map */
