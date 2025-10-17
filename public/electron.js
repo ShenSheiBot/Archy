@@ -322,6 +322,11 @@ function sendTabsUpdate() {
 // Helper function to notify renderer (show nav, focus)
 function notifyRenderer() {
   if (mainWindow && mainWindow.webContents) {
+    // Show macOS traffic lights when showing navbar
+    if (process.platform === 'darwin') {
+      mainWindow.setWindowButtonVisibility(true);
+    }
+
     mainWindow.webContents.send('nav.show');
     mainWindow.webContents.send('nav.focus');
   }
