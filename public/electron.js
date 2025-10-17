@@ -480,6 +480,7 @@ function bindIpc() {
   ipcMain.removeAllListeners('theme.set');
   ipcMain.removeAllListeners('shortcut.get');
   ipcMain.removeAllListeners('shortcut.set');
+  ipcMain.removeAllListeners('shortcut.unregister');
   ipcMain.removeAllListeners('tab.create');
   ipcMain.removeAllListeners('tab.close');
   ipcMain.removeAllListeners('tab.switch');
@@ -514,6 +515,11 @@ function bindIpc() {
   ipcMain.on('shortcut.set', (event, shortcut) => {
     console.log(`[IPC] Received shortcut.set: ${shortcut}`);
     registerGlobalShortcut(shortcut);
+  });
+
+  ipcMain.on('shortcut.unregister', (event) => {
+    console.log(`[IPC] Received shortcut.unregister`);
+    globalShortcut.unregisterAll();
   });
 
   ipcMain.on('tab.create', (event, url) => {

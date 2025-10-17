@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electron', {
         'opacity.set',
         'theme.set',
         'shortcut.set',
+        'shortcut.unregister',
         'tab.create',
         'tab.close',
         'tab.switch',
