@@ -122,6 +122,21 @@ class WebPage extends React.Component {
       webview.classList.remove('webview-loading');
     });
 
+    // Handle fullscreen requests: make video fill the webview instead of going native fullscreen
+    webview.addEventListener('enter-html-full-screen', () => {
+      // Add CSS class to make webview fill entire window
+      webview.classList.add('webview-fullscreen');
+      // Hide navbar when in fullscreen
+      this.setState({ showNav: false });
+    });
+
+    webview.addEventListener('leave-html-full-screen', () => {
+      // Remove fullscreen class
+      webview.classList.remove('webview-fullscreen');
+      // Restore navbar
+      this.setState({ showNav: true });
+    });
+
     webview._listenersSetup = true;
   };
 

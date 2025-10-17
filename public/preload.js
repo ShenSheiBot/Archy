@@ -10,8 +10,6 @@ contextBridge.exposeInMainWorld('electron', {
       const validChannels = [
         'opacity.set',
         'theme.set',
-        'fullscreen.enter',
-        'fullscreen.exit',
         'tab.create',
         'tab.close',
         'tab.switch',
