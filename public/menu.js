@@ -197,6 +197,8 @@ function setMainMenu(mainWindow) {
           click() {
             // Note: No dock badge since dock is hidden
             mainWindow.setIgnoreMouseEvents(true);
+            // Hide navbar when entering detached mode (can't interact with it anyway)
+            mainWindow.webContents.send('nav.hide');
           }
         },
         {

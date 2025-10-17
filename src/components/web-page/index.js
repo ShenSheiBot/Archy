@@ -27,14 +27,22 @@ class WebPage extends React.Component {
     });
   };
 
+  hideNavBar = () => {
+    this.setState({
+      showNav: false
+    });
+  };
+
   bindNavBar() {
     ipcRenderer.on('nav.toggle', this.toggleNavBar);
     ipcRenderer.on('nav.show', this.showNavBar);
+    ipcRenderer.on('nav.hide', this.hideNavBar);
   }
 
   unbindNavBar() {
     ipcRenderer.removeListener('nav.toggle', this.toggleNavBar);
     ipcRenderer.removeListener('nav.show', this.showNavBar);
+    ipcRenderer.removeListener('nav.hide', this.hideNavBar);
   }
 
   setupWebviewListeners = (webview, tabId) => {
