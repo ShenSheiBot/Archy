@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electron', {
       // whitelist channels
       const validChannels = [
         'opacity.set',
+        'theme.set',
         'fullscreen.enter',
         'fullscreen.exit',
         'tab.create',
@@ -55,7 +56,7 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     sendSync: (channel) => {
-      const validChannels = ['opacity.get', 'tabs.get'];
+      const validChannels = ['opacity.get', 'theme.get', 'tabs.get'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.sendSync(channel);
       }
