@@ -143,4 +143,55 @@ html[data-theme="dark"] .restore-navbar-btn:hover {
   background: rgba(255, 255, 255, 0.25);
 }
 
+/* Zoom indicator */
+.zoom-indicator {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: white;
+  font-size: 48px;
+  font-weight: bold;
+  padding: 24px 48px;
+  border-radius: 12px;
+  z-index: 10001;
+  pointer-events: none;
+  animation: zoomFade 1.5s ease-in-out;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+@keyframes zoomFade {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .zoom-indicator {
+    background: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.95);
+  }
+}
+
+html[data-theme="dark"] .zoom-indicator {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.95);
+}
+
 /*# sourceMappingURL=style.css.map */
