@@ -1,0 +1,205 @@
+.quick-access-page {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 40px 20px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  -webkit-app-region: drag;
+  background: transparent;
+}
+
+.quick-access-page .url-input {
+  font-size: 16px;
+  font-weight: 400;
+  padding: 12px 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  border-radius: 12px;
+  border: 1px solid #e0e0e0;
+  background: #ffffff;
+  outline: none;
+  width: 100%;
+  max-width: 500px;
+  color: #333333;
+  transition: all 0.2s;
+  -webkit-app-region: no-drag;
+}
+
+.quick-access-page .url-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 2px 12px rgba(0,123,255,.15);
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick-access-page .url-input {
+    background: rgba(60, 60, 67, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #ffffff;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  .quick-access-page .url-input:focus {
+    background: rgba(60, 60, 67, 0.8);
+    border-color: rgba(10, 132, 255, 0.6);
+    box-shadow: 0 2px 12px rgba(10,132,255,.25);
+  }
+
+  .quick-access-page .url-input::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+  }
+}
+
+.quick-access-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 500px;
+  -webkit-app-region: no-drag;
+}
+
+.quick-access-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 12px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  -webkit-app-region: no-drag;
+}
+
+.quick-access-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  border-color: #007bff;
+}
+
+.quick-access-item:active {
+  transform: translateY(0);
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick-access-item {
+    background: rgba(60, 60, 67, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+
+  .quick-access-item:hover {
+    background: rgba(60, 60, 67, 0.8);
+    border-color: rgba(10, 132, 255, 0.6);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+}
+
+.site-favicon {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.site-fallback {
+  width: 32px;
+  height: 32px;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  font-weight: 600;
+  color: #007bff;
+  background: rgba(0, 123, 255, 0.1);
+  border-radius: 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-fallback {
+    color: rgba(10, 132, 255, 0.9);
+    background: rgba(10, 132, 255, 0.2);
+  }
+}
+
+.site-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: #666666;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.2;
+}
+
+@media (prefers-color-scheme: dark) {
+  .site-name {
+    color: #a0a0a0;
+  }
+}
+
+/* Responsive adjustments for smaller windows */
+@media (max-width: 500px) {
+  .quick-access-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 350px) {
+  .quick-access-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-height: 400px) {
+  .quick-access-page {
+    padding: 20px;
+    gap: 20px;
+  }
+
+  .quick-access-item {
+    padding: 12px 8px;
+  }
+}
+
+/* Empty slot styles */
+.quick-access-empty {
+  background: transparent;
+  border: 2px dashed #d0d0d0;
+  cursor: default;
+  opacity: 0.5;
+}
+
+.quick-access-empty:hover {
+  transform: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  border-color: #d0d0d0;
+  opacity: 0.7;
+}
+
+@media (prefers-color-scheme: dark) {
+  .quick-access-empty {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+
+  .quick-access-empty:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  }
+}
+
+.empty-icon {
+  font-size: 32px;
+  font-weight: 300;
+  color: #d0d0d0;
+}
+
+@media (prefers-color-scheme: dark) {
+  .empty-icon {
+    color: rgba(255, 255, 255, 0.3);
+  }
+}

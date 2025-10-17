@@ -12,6 +12,7 @@ class WebPage extends React.Component {
   pendingUrl = new Map();
   zoomLevelsByDomain = new Map(); // Track zoom level for each domain
   zoomTimeout = null;
+  navStateBeforeFullscreen = null; // Remember navbar state before entering fullscreen
 
   state = {
     showNav: this.props.showNav,
@@ -163,6 +164,8 @@ class WebPage extends React.Component {
 
     const onEnterFullscreen = () => {
       webview.classList.add('webview-fullscreen');
+      // Remember navbar state before entering fullscreen
+      this.navStateBeforeFullscreen = this.state.showNav;
       this.setState({ showNav: false });
       // Hide macOS traffic lights in fullscreen
       ipcRenderer.send('fullscreen.enter');
@@ -170,9 +173,16 @@ class WebPage extends React.Component {
 
     const onLeaveFullscreen = () => {
       webview.classList.remove('webview-fullscreen');
-      this.setState({ showNav: true });
-      // Show macOS traffic lights when leaving fullscreen
-      ipcRenderer.send('fullscreen.leave');
+      // Restore navbar state from before fullscreen
+      const shouldShowNav = this.navStateBeforeFullscreen !== null
+        ? this.navStateBeforeFullscreen
+        : true;
+      this.setState({ showNav: shouldShowNav });
+      this.navStateBeforeFullscreen = null;
+      // Only show traffic lights if navbar should be shown
+      if (shouldShowNav) {
+        ipcRenderer.send('fullscreen.leave');
+      }
     };
 
     webview.addEventListener('dom-ready', onDomReady, { once: true });

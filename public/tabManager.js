@@ -51,9 +51,12 @@ function setTabs(newTabs, newActiveTabId, newNextTabId) {
 function createTab(targetUrl = '', sendUpdateCallback, notifyRendererCallback) {
   const tabId = nextTabId++;
 
+  // Use quick access page as default for new tabs
+  const defaultUrl = `file://${__dirname}/quick-access.html`;
+
   const tab = {
     id: tabId,
-    url: targetUrl || '',
+    url: targetUrl || defaultUrl,
     title: 'New Tab',
     favicon: null,
     loading: false
