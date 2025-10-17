@@ -38,18 +38,14 @@ const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const fetch = require('cross-fetch');
 const { saveSession: saveSessionToFile, loadSession: loadSessionFromFile } = require('./sessionManager');
 const tabManager = require('./tabManager');
+const themeManager = require('./themeManager');
+const shortcutsManager = require('./shortcutsManager');
+const windowManager = require('./windowManager');
+const { bindIpcHandlers } = require('./ipcHandler');
+const trayManager = require('./trayManager');
 
 let mainWindow;
-let isWindowVisible = true;
-let tray = null;
-
 let tabShortcutsBound = false;
-
-// Theme state management
-let currentTheme = 'system';  // 'system', 'light', 'dark'
-
-// Global shortcut management
-let currentGlobalShortcut = 'Control+Alt+Shift+0';
 
 // Save session to disk
 function saveSession() {
@@ -61,8 +57,8 @@ function saveSession() {
       favicon: t.favicon
     })),
     activeTabId: tabManager.getActiveTabId(),
-    theme: currentTheme,
-    globalShortcut: currentGlobalShortcut
+    theme: themeManager.getCurrentTheme(),
+    globalShortcut: shortcutsManager.getCurrentGlobalShortcut()
   };
 
   // Save window bounds and opacity if window exists
@@ -89,12 +85,12 @@ function restoreSession() {
 
   // Restore theme
   if (session.theme) {
-    currentTheme = session.theme;
+    themeManager.setCurrentTheme(session.theme);
   }
 
   // Restore global shortcut
   if (session.globalShortcut) {
-    currentGlobalShortcut = session.globalShortcut;
+    shortcutsManager.setCurrentGlobalShortcut(session.globalShortcut);
   }
 
   // Restore tabs
@@ -126,62 +122,7 @@ function restoreSession() {
 }
 
 function applyTheme(theme) {
-  currentTheme = theme;
-
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-
-  let effectiveTheme = theme;
-
-  if (theme === 'system') {
-    // Use system preference
-    effectiveTheme = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
-  }
-
-  console.log(`[Theme] Applying theme: ${theme} (effective: ${effectiveTheme})`);
-
-  // Wait for webContents to be ready
-  if (mainWindow.webContents.isLoading()) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      applyTheme(theme);
-    });
-    return;
-  }
-
-  // Apply theme to renderer - check if ready first
-  if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.executeJavaScript(`
-      console.log('[Theme] Setting data-theme to: ${effectiveTheme}');
-      document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
-      console.log('[Theme] Current data-theme:', document.documentElement.getAttribute('data-theme'));
-    `).then(() => {
-      console.log(`[Theme] Successfully set data-theme to: ${effectiveTheme}`);
-    }).catch(err => {
-      // Silently ignore errors during page transitions
-      if (err.message && !err.message.includes('context')) {
-        console.error('[Theme] Failed to apply theme:', err);
-      }
-    });
-  }
-
-  // Update background color for window and all existing webviews
-  const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
-
-  // Update main window background
-  try {
-    mainWindow.setBackgroundColor(bgColor);
-  } catch (e) {}
-
-  // Update all webviews
-  const allWebContents = require('electron').webContents.getAllWebContents();
-  allWebContents.forEach(wc => {
-    try {
-      if (wc.getType() === 'webview') {
-        wc.setBackgroundColor(bgColor);
-      }
-    } catch (e) {
-      // Webview might be destroyed
-    }
-  });
+  themeManager.applyTheme(theme, mainWindow);
 }
 
 function ensureDevtoolsWindowFor(wc, hostWindow) {
@@ -254,11 +195,8 @@ function createWindow() {
   }
 
   // Set initial background color based on current theme
-  const effectiveTheme = currentTheme === 'system'
-    ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
-    : currentTheme;
-
-  const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
+  const effectiveTheme = themeManager.getEffectiveTheme(themeManager.getCurrentTheme());
+  const bgColor = themeManager.getBackgroundColor(effectiveTheme);
 
   if (process.platform === 'darwin') {
     windowOptions.backgroundColor = bgColor;
@@ -277,6 +215,7 @@ function createWindow() {
 
   bindIpc();
 
+
   const isDev = !!process.env.APP_URL;
   if (process.env.APP_URL) {
     mainWindow.loadURL(process.env.APP_URL);
@@ -292,7 +231,7 @@ function createWindow() {
     });
 
     // Apply initial theme
-    applyTheme(currentTheme);
+    applyTheme(themeManager.getCurrentTheme());
 
     // Restore session after page loads
     restoreSession();
@@ -304,7 +243,7 @@ function createWindow() {
     }
 
     mainWindow.show();
-    isWindowVisible = true;
+    windowManager.setWindowVisible(true);
     bindTabShortcuts();
   });
 
@@ -374,19 +313,9 @@ function navigateTab(tabId, targetUrl) {
 }
 
 function bindShortcutsToWebContents(webContents) {
-  // Skip if already bound to avoid duplicate listeners
-  if (webContents._shortcutsBound) return;
-  webContents._shortcutsBound = true;
-
-  webContents.on('before-input-event', (event, input) => {
-    if (input.meta && input.key === 't' && input.type === 'keyDown') {
-      event.preventDefault();
-      createTab('');
-      return;
-    }
-
-    if (input.meta && input.key === 'w' && input.type === 'keyDown') {
-      event.preventDefault();
+  const callbacks = {
+    createTab: (url) => createTab(url),
+    closeTab: () => {
       const activeTabId = tabManager.getActiveTabId();
       const tabs = tabManager.getTabs();
       if (activeTabId && tabs.length > 0) {
@@ -394,20 +323,13 @@ function bindShortcutsToWebContents(webContents) {
       } else if (tabs.length === 0 && mainWindow) {
         mainWindow.close();
       }
-      return;
-    }
-
-    if (input.meta && input.key === 'f' && input.type === 'keyDown') {
-      event.preventDefault();
+    },
+    toggleSearch: () => {
       if (mainWindow && mainWindow.webContents) {
         mainWindow.webContents.send('search.toggle');
       }
-      return;
-    }
-
-    // Ctrl+Shift+Tab: Previous tab
-    if (input.control && input.shift && input.key === 'Tab' && input.type === 'keyDown') {
-      event.preventDefault();
+    },
+    previousTab: () => {
       const activeTabId = tabManager.getActiveTabId();
       const tabs = tabManager.getTabs();
       const currentIndex = tabs.findIndex(t => t.id === activeTabId);
@@ -417,12 +339,8 @@ function bindShortcutsToWebContents(webContents) {
         // Wrap to last tab
         switchToTab(tabs[tabs.length - 1].id);
       }
-      return;
-    }
-
-    // Ctrl+Tab: Next tab
-    if (input.control && !input.shift && input.key === 'Tab' && input.type === 'keyDown') {
-      event.preventDefault();
+    },
+    nextTab: () => {
       const activeTabId = tabManager.getActiveTabId();
       const tabs = tabManager.getTabs();
       const currentIndex = tabs.findIndex(t => t.id === activeTabId);
@@ -432,10 +350,10 @@ function bindShortcutsToWebContents(webContents) {
         // Wrap to first tab
         switchToTab(tabs[0].id);
       }
-      return;
     }
+  };
 
-  });
+  shortcutsManager.bindShortcutsToWebContents(webContents, callbacks);
 }
 
 function bindTabShortcuts() {
@@ -446,182 +364,50 @@ function bindTabShortcuts() {
 }
 
 function registerGlobalShortcut(shortcut, skipSave = false) {
-  // Unregister previous shortcut
-  globalShortcut.unregisterAll();
+  const success = shortcutsManager.registerGlobalShortcut(shortcut, () => {
+    toggleWindow();
+  }, skipSave);
 
-  // Register new shortcut
-  try {
-    const success = globalShortcut.register(shortcut, () => {
-      toggleWindow();
-    });
-
-    if (success) {
-      console.log(`[Shortcut] Successfully registered: ${shortcut}`);
-      currentGlobalShortcut = shortcut;
-      // Only save session if explicitly requested (e.g., user changed shortcut)
-      if (!skipSave) {
-        saveSession();
-      }
-      return true;
-    } else {
-      console.error(`[Shortcut] Failed to register: ${shortcut}`);
-      return false;
-    }
-  } catch (err) {
-    console.error(`[Shortcut] Error registering: ${shortcut}`, err);
-    return false;
+  // Only save session if explicitly requested (e.g., user changed shortcut)
+  if (success && !skipSave) {
+    saveSession();
   }
+
+  return success;
 }
 
 function bindIpc() {
-  ipcMain.removeAllListeners('opacity.get');
-  ipcMain.removeAllListeners('opacity.set');
-  ipcMain.removeAllListeners('theme.get');
-  ipcMain.removeAllListeners('theme.set');
-  ipcMain.removeAllListeners('shortcut.get');
-  ipcMain.removeAllListeners('shortcut.set');
-  ipcMain.removeAllListeners('shortcut.unregister');
-  ipcMain.removeAllListeners('tab.create');
-  ipcMain.removeAllListeners('tab.close');
-  ipcMain.removeAllListeners('tab.switch');
-  ipcMain.removeAllListeners('tab.navigate');
-  ipcMain.removeAllListeners('tab.reload');
-  ipcMain.removeAllListeners('tab.back');
-  ipcMain.removeAllListeners('tab.forward');
-  ipcMain.removeAllListeners('tab.update');
-  ipcMain.removeAllListeners('tabs.get');
-
-  ipcMain.on('opacity.get', (event) => {
-    event.returnValue = mainWindow.getOpacity() * 100;
-  });
-
-  ipcMain.on('opacity.set', (event, opacity) => {
-    mainWindow.setOpacity(opacity / 100);
-  });
-
-  ipcMain.on('theme.get', (event) => {
-    event.returnValue = currentTheme;
-  });
-
-  ipcMain.on('theme.set', (event, theme) => {
-    console.log(`[IPC] Received theme.set: ${theme}`);
-    applyTheme(theme);
-  });
-
-  ipcMain.on('shortcut.get', (event) => {
-    event.returnValue = currentGlobalShortcut;
-  });
-
-  ipcMain.on('shortcut.set', (event, shortcut) => {
-    console.log(`[IPC] Received shortcut.set: ${shortcut}`);
-    registerGlobalShortcut(shortcut);
-  });
-
-  ipcMain.on('shortcut.unregister', (event) => {
-    console.log(`[IPC] Received shortcut.unregister`);
-    globalShortcut.unregisterAll();
-  });
-
-  ipcMain.on('tab.create', (event, url) => {
-    createTab(url);
-  });
-
-  ipcMain.on('tab.close', (event, tabId) => {
-    closeTab(tabId);
-  });
-
-  ipcMain.on('tab.switch', (event, tabId) => {
-    switchToTab(tabId);
-  });
-
-  ipcMain.on('tab.navigate', (event, { tabId, url }) => {
-    navigateTab(tabId, url);
-  });
-
-  ipcMain.on('tab.update', (event, { tabId, updates }) => {
-    tabManager.updateTab(tabId, updates, sendTabsUpdate);
-  });
-
-  ipcMain.on('tabs.get', (event) => {
-    event.returnValue = tabManager.getTabsData();
+  bindIpcHandlers({
+    getOpacity: () => mainWindow.getOpacity() * 100,
+    setOpacity: (opacity) => mainWindow.setOpacity(opacity / 100),
+    getTheme: () => themeManager.getCurrentTheme(),
+    setTheme: (theme) => applyTheme(theme),
+    getShortcut: () => shortcutsManager.getCurrentGlobalShortcut(),
+    setShortcut: (shortcut) => registerGlobalShortcut(shortcut),
+    unregisterShortcut: () => shortcutsManager.unregisterAllGlobalShortcuts(),
+    createTab: (url) => createTab(url),
+    closeTab: (tabId) => closeTab(tabId),
+    switchTab: (tabId) => switchToTab(tabId),
+    navigateTab: (tabId, url) => navigateTab(tabId, url),
+    updateTab: (tabId, updates) => tabManager.updateTab(tabId, updates, sendTabsUpdate),
+    getTabs: () => tabManager.getTabsData()
   });
 }
 
 function ensureOverlayState(win) {
-  if (!win) return;
-
-  win.setVisibleOnAllWorkspaces(true, {
-    visibleOnFullScreen: true,
-    skipTransformProcessType: true
-  });
-
-  win.setAlwaysOnTop(true, 'pop-up-menu');
-
-  if (process.platform === 'darwin') {
-    win.setAlwaysOnTop(true, 'pop-up-menu', 1);
-  }
+  windowManager.ensureOverlayState(win);
 }
 
 function disableDetachedMode() {
-  app.dock && app.dock.setBadge('');
-  mainWindow && mainWindow.setIgnoreMouseEvents(false);
+  windowManager.disableDetachedMode(mainWindow, app);
 }
 
 function forceRedraw(win) {
-  if (!win || win.isDestroyed()) return;
-
-  // Force compositor refresh on macOS to fix blurry text after show/hide
-  if (process.platform === 'darwin') {
-    const bounds = win.getBounds();
-    // Trigger a minimal resize to force redraw
-    win.setBounds({ ...bounds, height: bounds.height + 1 });
-    setImmediate(() => {
-      if (!win.isDestroyed()) {
-        win.setBounds(bounds);
-      }
-    });
-  }
+  windowManager.forceRedraw(win);
 }
 
 function toggleWindow() {
-  if (!mainWindow) return;
-
-  if (isWindowVisible) {
-    mainWindow.hide();
-    isWindowVisible = false;
-  } else {
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-
-    const cursorPoint = screen.getCursorScreenPoint();
-    const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-    const windowBounds = mainWindow.getBounds();
-    const { x, y, width, height } = currentDisplay.workArea;
-
-    const newX = Math.max(x, Math.min(windowBounds.x, x + width - windowBounds.width));
-    const newY = Math.max(y, Math.min(windowBounds.y, y + height - windowBounds.height));
-
-    if (newX !== windowBounds.x || newY !== windowBounds.y) {
-      mainWindow.setBounds({ x: newX, y: newY });
-    }
-
-    ensureOverlayState(mainWindow);
-    mainWindow.show();  // Changed from showInactive() to show() for better rendering
-
-    if (typeof mainWindow.moveTop === 'function') {
-      mainWindow.moveTop();
-    }
-
-    // Force focus on main window to ensure keyboard shortcuts work immediately
-    mainWindow.focus();
-    app.focus({ steal: true });
-
-    isWindowVisible = true;
-
-    // Force redraw to fix blurry text
-    forceRedraw(mainWindow);
-  }
+  windowManager.toggleWindow(mainWindow);
 }
 
 function checkAndDownloadUpdate() {
@@ -650,52 +436,16 @@ function listenUrlLoader() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, 'img/iconTemplate.png');
-  const icon = nativeImage.createFromPath(iconPath);
-
-  tray = new Tray(icon);
-  tray.setToolTip('Archy - Floating Browser');
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show/Hide Window',
-      click: () => {
-        toggleWindow();
+  trayManager.createTray({
+    toggleWindow: () => toggleWindow(),
+    createTab: (url) => createTab(url),
+    showSettings: () => {
+      if (mainWindow) {
+        mainWindow.show();
+        mainWindow.webContents.send('nav.show');
       }
     },
-    {
-      label: 'New Tab',
-      accelerator: 'CmdOrCtrl+T',
-      click: () => {
-        createTab('');
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Settings',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show();
-          mainWindow.webContents.send('nav.show');
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      accelerator: 'CmdOrCtrl+Q',
-      click: () => {
-        app.quit();
-      }
-    }
-  ]);
-
-  tray.on('click', () => {
-    toggleWindow();
-  });
-
-  tray.on('right-click', () => {
-    tray.popUpContextMenu(contextMenu);
+    quitApp: () => app.quit()
   });
 }
 
@@ -711,7 +461,7 @@ app.on('ready', async function () {
 
   // Listen for system theme changes
   nativeTheme.on('updated', () => {
-    if (currentTheme === 'system') {
+    if (themeManager.getCurrentTheme() === 'system') {
       applyTheme('system');
     }
   });
@@ -743,7 +493,7 @@ app.on('ready', async function () {
 
   // Register global shortcut (uses restored shortcut from session or default)
   // Skip saving on initial registration to avoid overwriting session before tabs are restored
-  registerGlobalShortcut(currentGlobalShortcut, true);
+  registerGlobalShortcut(shortcutsManager.getCurrentGlobalShortcut(), true);
 
   app.on('web-contents-created', (event, contents) => {
     // Increase max listeners to avoid warnings (webviews have many internal listeners)
@@ -754,11 +504,8 @@ app.on('ready', async function () {
     if (contents.getType && contents.getType() === 'webview') {
       try {
         // Set webview background based on current theme
-        const effectiveTheme = currentTheme === 'system'
-          ? (nativeTheme.shouldUseDarkColors ? 'dark' : 'light')
-          : currentTheme;
-
-        const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
+        const effectiveTheme = themeManager.getEffectiveTheme(themeManager.getCurrentTheme());
+        const bgColor = themeManager.getBackgroundColor(effectiveTheme);
         contents.setBackgroundColor(bgColor);
       } catch (e) {}
 
@@ -799,5 +546,5 @@ app.on('window-all-closed', function () {
 
 app.on('will-quit', () => {
   // Session already saved in window 'close' event
-  globalShortcut.unregisterAll();
+  shortcutsManager.unregisterAllGlobalShortcuts();
 });
