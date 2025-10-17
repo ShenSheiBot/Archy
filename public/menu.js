@@ -199,6 +199,10 @@ function setMainMenu(mainWindow) {
             mainWindow.setIgnoreMouseEvents(true);
             // Hide navbar when entering detached mode (can't interact with it anyway)
             mainWindow.webContents.send('nav.hide');
+            // Hide macOS traffic lights in detached mode
+            if (isMac) {
+              mainWindow.setWindowButtonVisibility(false);
+            }
           }
         },
         {

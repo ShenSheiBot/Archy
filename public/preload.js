@@ -16,7 +16,11 @@ contextBridge.exposeInMainWorld('electron', {
         'tab.close',
         'tab.switch',
         'tab.navigate',
-        'tab.update'
+        'tab.update',
+        'nav.hide',
+        'nav.show',
+        'nav.toggle',
+        'settings.toggle'
         // reload, back, forward, search are handled directly by webview in renderer
       ];
       if (validChannels.includes(channel)) {
