@@ -11,7 +11,10 @@ class Settings extends React.Component {
     theme: ipcRenderer.sendSync('theme.get') || 'system',  // 'system', 'light', 'dark'
     globalShortcut: ipcRenderer.sendSync('shortcut.get') || 'Control+Alt+Shift+0',
     isRecording: false,
-    recordedKeys: []
+    recordedKeys: [],
+    // Startup options
+    startupBehavior: ipcRenderer.sendSync('startup.behavior.get') || 'restore',  // 'blank', 'restore', 'url'
+    startupUrl: ipcRenderer.sendSync('startup.url.get') || 'https://www.google.com'
   };
 
   componentDidMount() {
@@ -59,6 +62,18 @@ class Settings extends React.Component {
     if (this.props.onHideNavbar) {
       this.props.onHideNavbar();
     }
+  };
+
+  onStartupBehaviorChange = (e) => {
+    const behavior = e.target.value;
+    this.setState({ startupBehavior: behavior });
+    ipcRenderer.send('startup.behavior.set', behavior);
+  };
+
+  onStartupUrlChange = (e) => {
+    const url = e.target.value;
+    this.setState({ startupUrl: url });
+    ipcRenderer.send('startup.url.set', url);
   };
 
   getThemeIcon = () => {
@@ -163,7 +178,7 @@ class Settings extends React.Component {
   };
 
   render() {
-    const { isRecording, recordedKeys, globalShortcut } = this.state;
+    const { isRecording, recordedKeys, globalShortcut, startupBehavior, startupUrl } = this.state;
     const displayShortcut = isRecording
       ? (recordedKeys.length > 0 ? recordedKeys.join('+') : 'Press keys...')
       : globalShortcut;
@@ -199,6 +214,30 @@ class Settings extends React.Component {
                   <i className="fa fa-times"/>
                 </button>
               </div>
+            )}
+          </div>
+        </div>
+        <div className="setting-control startup-options">
+          <i className="fa fa-power-off startup-icon" title="Startup Options"/>
+          <div className="startup-wrapper">
+            <select
+              className="startup-select"
+              value={startupBehavior}
+              onChange={this.onStartupBehaviorChange}
+              title="Startup Behavior"
+            >
+              <option value="blank">Blank Page</option>
+              <option value="restore">Restore Session</option>
+              <option value="url">Custom URL</option>
+            </select>
+            {startupBehavior === 'url' && (
+              <input
+                type="text"
+                className="startup-url-input"
+                value={startupUrl}
+                onChange={this.onStartupUrlChange}
+                placeholder="Enter URL..."
+              />
             )}
           </div>
         </div>

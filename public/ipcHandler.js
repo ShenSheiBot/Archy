@@ -24,7 +24,11 @@ function bindIpcHandlers(handlers) {
     navigateTab,
     updateTab,
     getTabs,
-    relayToRenderer
+    relayToRenderer,
+    getStartupBehavior,
+    setStartupBehavior,
+    getStartupUrl,
+    setStartupUrl
   } = handlers;
 
   // Remove all existing listeners to avoid duplicates
@@ -48,6 +52,10 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('nav.show');
   ipcMain.removeAllListeners('nav.toggle');
   ipcMain.removeAllListeners('settings.toggle');
+  ipcMain.removeAllListeners('startup.behavior.get');
+  ipcMain.removeAllListeners('startup.behavior.set');
+  ipcMain.removeAllListeners('startup.url.get');
+  ipcMain.removeAllListeners('startup.url.set');
 
   // Opacity handlers
   ipcMain.on('opacity.get', (event) => {
@@ -139,6 +147,25 @@ function bindIpcHandlers(handlers) {
 
   ipcMain.on('settings.toggle', (event, isShown) => {
     relayToRenderer('settings.toggle', isShown);
+  });
+
+  // Startup configuration handlers
+  ipcMain.on('startup.behavior.get', (event) => {
+    event.returnValue = getStartupBehavior();
+  });
+
+  ipcMain.on('startup.behavior.set', (event, behavior) => {
+    console.log(`[IPC] Received startup.behavior.set: ${behavior}`);
+    setStartupBehavior(behavior);
+  });
+
+  ipcMain.on('startup.url.get', (event) => {
+    event.returnValue = getStartupUrl();
+  });
+
+  ipcMain.on('startup.url.set', (event, url) => {
+    console.log(`[IPC] Received startup.url.set: ${url}`);
+    setStartupUrl(url);
   });
 }
 
