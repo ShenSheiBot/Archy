@@ -164,11 +164,15 @@ class WebPage extends React.Component {
     const onEnterFullscreen = () => {
       webview.classList.add('webview-fullscreen');
       this.setState({ showNav: false });
+      // Hide macOS traffic lights in fullscreen
+      ipcRenderer.send('fullscreen.enter');
     };
 
     const onLeaveFullscreen = () => {
       webview.classList.remove('webview-fullscreen');
       this.setState({ showNav: true });
+      // Show macOS traffic lights when leaving fullscreen
+      ipcRenderer.send('fullscreen.leave');
     };
 
     webview.addEventListener('dom-ready', onDomReady, { once: true });
@@ -419,13 +423,16 @@ class WebPage extends React.Component {
           />
         </div>
         {!this.state.showNav && (
-          <button
-            className="restore-navbar-btn"
-            onClick={this.showNavBar}
-            title="Show Navbar"
-          >
-            <i className="fa fa-eye"/>
-          </button>
+          <>
+            <div className="drag-area" />
+            <button
+              className="restore-navbar-btn"
+              onClick={this.showNavBar}
+              title="Show Navbar"
+            >
+              <i className="fa fa-eye"/>
+            </button>
+          </>
         )}
         {this.state.showZoomIndicator && (
           <div className="zoom-indicator">
