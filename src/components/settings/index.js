@@ -104,6 +104,8 @@ class Settings extends React.Component {
       isRecording: true,
       recordedKeys: []
     });
+    // Temporarily unregister global shortcut to allow recording
+    ipcRenderer.send('shortcut.unregister');
   };
 
   stopRecording = () => {
@@ -150,6 +152,8 @@ class Settings extends React.Component {
       isRecording: false,
       recordedKeys: []
     });
+    // Re-register the original shortcut
+    ipcRenderer.send('shortcut.set', this.state.globalShortcut);
   };
 
   render() {
