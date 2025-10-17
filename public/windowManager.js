@@ -103,6 +103,10 @@ function toggleWindow(mainWindow) {
 
     isWindowVisible = true;
 
+    // Restore navbar and exit detached mode when showing window
+    mainWindow.setIgnoreMouseEvents(false);
+    mainWindow.webContents.send('nav.show');
+
     // Force redraw to fix blurry text
     forceRedraw(mainWindow);
   }
