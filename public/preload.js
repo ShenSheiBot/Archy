@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electron', {
       const validChannels = [
         'opacity.set',
         'theme.set',
+        'shortcut.set',
         'tab.create',
         'tab.close',
         'tab.switch',
@@ -54,7 +55,7 @@ contextBridge.exposeInMainWorld('electron', {
       }
     },
     sendSync: (channel) => {
-      const validChannels = ['opacity.get', 'theme.get', 'tabs.get'];
+      const validChannels = ['opacity.get', 'theme.get', 'shortcut.get', 'tabs.get'];
       if (validChannels.includes(channel)) {
         return ipcRenderer.sendSync(channel);
       }

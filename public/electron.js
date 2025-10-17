@@ -51,6 +51,9 @@ const pendingUpdates = new Map();
 // Theme state management
 let currentTheme = 'system';  // 'system', 'light', 'dark'
 
+// Global shortcut management
+let currentGlobalShortcut = 'Control+Alt+Shift+0';
+
 // Session file path
 const sessionFilePath = path.join(app.getPath('userData'), 'session.json');
 
@@ -64,7 +67,8 @@ function saveSession() {
         favicon: t.favicon
       })),
       activeTabId: activeTabId,
-      theme: currentTheme
+      theme: currentTheme,
+      globalShortcut: currentGlobalShortcut
     };
 
     // Save window bounds and opacity if window exists
@@ -104,35 +108,42 @@ function loadSession() {
 // Restore session
 function restoreSession() {
   const session = loadSession();
-  if (!session || !session.tabs || session.tabs.length === 0) {
-    return false;
-  }
+  if (!session) return false;
 
   // Restore theme
   if (session.theme) {
     currentTheme = session.theme;
   }
 
-  // Restore tabs
-  session.tabs.forEach((tabData, index) => {
-    const tabId = nextTabId++;
-    const tab = {
-      id: tabId,
-      url: tabData.url || '',
-      title: tabData.title || 'New Tab',
-      favicon: tabData.favicon || null,
-      loading: false
-    };
-    tabs.push(tab);
-  });
-
-  // Restore active tab (use first tab if activeTabId is invalid)
-  if (tabs.length > 0) {
-    activeTabId = tabs[0].id;
+  // Restore global shortcut
+  if (session.globalShortcut) {
+    currentGlobalShortcut = session.globalShortcut;
   }
 
-  sendTabsUpdate();
-  return true;
+  // Restore tabs
+  if (session.tabs && session.tabs.length > 0) {
+    session.tabs.forEach((tabData, index) => {
+      const tabId = nextTabId++;
+      const tab = {
+        id: tabId,
+        url: tabData.url || '',
+        title: tabData.title || 'New Tab',
+        favicon: tabData.favicon || null,
+        loading: false
+      };
+      tabs.push(tab);
+    });
+
+    // Restore active tab (use first tab if activeTabId is invalid)
+    if (tabs.length > 0) {
+      activeTabId = tabs[0].id;
+    }
+
+    sendTabsUpdate();
+    return true;
+  }
+
+  return false;
 }
 
 function applyTheme(theme) {
@@ -492,11 +503,38 @@ function bindTabShortcuts() {
   bindShortcutsToWebContents(mainWindow.webContents);
 }
 
+function registerGlobalShortcut(shortcut) {
+  // Unregister previous shortcut
+  globalShortcut.unregisterAll();
+
+  // Register new shortcut
+  try {
+    const success = globalShortcut.register(shortcut, () => {
+      toggleWindow();
+    });
+
+    if (success) {
+      console.log(`[Shortcut] Successfully registered: ${shortcut}`);
+      currentGlobalShortcut = shortcut;
+      saveSession();
+      return true;
+    } else {
+      console.error(`[Shortcut] Failed to register: ${shortcut}`);
+      return false;
+    }
+  } catch (err) {
+    console.error(`[Shortcut] Error registering: ${shortcut}`, err);
+    return false;
+  }
+}
+
 function bindIpc() {
   ipcMain.removeAllListeners('opacity.get');
   ipcMain.removeAllListeners('opacity.set');
   ipcMain.removeAllListeners('theme.get');
   ipcMain.removeAllListeners('theme.set');
+  ipcMain.removeAllListeners('shortcut.get');
+  ipcMain.removeAllListeners('shortcut.set');
   ipcMain.removeAllListeners('tab.create');
   ipcMain.removeAllListeners('tab.close');
   ipcMain.removeAllListeners('tab.switch');
@@ -522,6 +560,15 @@ function bindIpc() {
   ipcMain.on('theme.set', (event, theme) => {
     console.log(`[IPC] Received theme.set: ${theme}`);
     applyTheme(theme);
+  });
+
+  ipcMain.on('shortcut.get', (event) => {
+    event.returnValue = currentGlobalShortcut;
+  });
+
+  ipcMain.on('shortcut.set', (event, shortcut) => {
+    console.log(`[IPC] Received shortcut.set: ${shortcut}`);
+    registerGlobalShortcut(shortcut);
   });
 
   ipcMain.on('tab.create', (event, url) => {
@@ -778,9 +825,8 @@ app.on('ready', async function () {
   checkAndDownloadUpdate();
   listenUrlLoader();
 
-  globalShortcut.register('Control+Alt+Shift+0', () => {
-    toggleWindow();
-  });
+  // Register global shortcut (uses restored shortcut from session or default)
+  registerGlobalShortcut(currentGlobalShortcut);
 
   app.on('web-contents-created', (event, contents) => {
     // Increase max listeners to avoid warnings (webviews have many internal listeners)

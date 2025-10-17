@@ -3,7 +3,7 @@
   "description": "Archy – Cross-platform floating window browser, inspired by Archytas's pigeon, the world's first flying automaton.",
   "productName": "Archy",
   "author": "ShenSheiBot",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "private": true,
   "main": "public/electron.js",
   "homepage": "./",
