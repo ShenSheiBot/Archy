@@ -22,6 +22,17 @@ process.on('uncaughtException', (err) => {
   throw err;
 });
 
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  // Silently ignore "Script failed to execute" errors from webview IPC
+  // These happen when webviews are destroyed during navigation
+  if (reason && reason.message && reason.message.includes('Script failed to execute')) {
+    return;
+  }
+  // Log other rejections
+  console.error('Unhandled Promise Rejection:', reason);
+});
+
 const { setMainMenu } = require('./menu');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const fetch = require('cross-fetch');
@@ -146,16 +157,21 @@ function applyTheme(theme) {
     return;
   }
 
-  // Apply theme to renderer
-  mainWindow.webContents.executeJavaScript(`
-    console.log('[Theme] Setting data-theme to: ${effectiveTheme}');
-    document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
-    console.log('[Theme] Current data-theme:', document.documentElement.getAttribute('data-theme'));
-  `).then(() => {
-    console.log(`[Theme] Successfully set data-theme to: ${effectiveTheme}`);
-  }).catch(err => {
-    console.error('[Theme] Failed to apply theme:', err);
-  });
+  // Apply theme to renderer - check if ready first
+  if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+    mainWindow.webContents.executeJavaScript(`
+      console.log('[Theme] Setting data-theme to: ${effectiveTheme}');
+      document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
+      console.log('[Theme] Current data-theme:', document.documentElement.getAttribute('data-theme'));
+    `).then(() => {
+      console.log(`[Theme] Successfully set data-theme to: ${effectiveTheme}`);
+    }).catch(err => {
+      // Silently ignore errors during page transitions
+      if (err.message && !err.message.includes('context')) {
+        console.error('[Theme] Failed to apply theme:', err);
+      }
+    });
+  }
 
   // Update background color for window and all existing webviews
   const bgColor = effectiveTheme === 'dark' ? '#1c1c1e' : '#F8F9FA';
@@ -281,7 +297,9 @@ function createWindow() {
   mainWindow.webContents.on('did-finish-load', () => {
     const platform = process.platform;
     const jsCode = `document.body.classList.add('platform-${platform}');`;
-    mainWindow.webContents.executeJavaScript(jsCode);
+    mainWindow.webContents.executeJavaScript(jsCode).catch(err => {
+      // Silently ignore errors during page transitions
+    });
 
     // Apply initial theme
     applyTheme(currentTheme);
@@ -409,6 +427,10 @@ function sendTabsUpdate() {
 }
 
 function bindShortcutsToWebContents(webContents) {
+  // Skip if already bound to avoid duplicate listeners
+  if (webContents._shortcutsBound) return;
+  webContents._shortcutsBound = true;
+
   webContents.on('before-input-event', (event, input) => {
     if (input.meta && input.key === 't' && input.type === 'keyDown') {
       event.preventDefault();
@@ -738,10 +760,9 @@ app.on('ready', async function () {
   await ses.clearHostResolverCache();
 
   try {
-    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch, {
-      enableCompression: true,
-    });
+    const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch);
     blocker.enableBlockingInSession(ses);
+    console.log('[AdBlock] Successfully initialized');
   } catch (error) {
     console.error('[AdBlock] Failed to initialize:', error);
   }
@@ -762,6 +783,9 @@ app.on('ready', async function () {
   });
 
   app.on('web-contents-created', (event, contents) => {
+    // Increase max listeners to avoid warnings (webviews have many internal listeners)
+    contents.setMaxListeners(30);
+
     bindShortcutsToWebContents(contents);
 
     if (contents.getType && contents.getType() === 'webview') {

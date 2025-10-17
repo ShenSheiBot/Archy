@@ -68,7 +68,11 @@ class WebPage extends React.Component {
       const url = this.pendingUrl.get(tabId);
       if (url) {
         this.pendingUrl.delete(tabId);
-        webview.loadURL(url);
+        try {
+          await webview.loadURL(url);
+        } catch (err) {
+          // Silently ignore load errors (e.g., navigation cancelled)
+        }
       }
 
     };
@@ -77,21 +81,16 @@ class WebPage extends React.Component {
       webview.classList.remove('webview-loading');
     };
 
-    webview.addEventListener('dom-ready', onDomReady, { once: true });
-    webview.addEventListener('did-finish-load', onFinishLoad);
-
-    let isFirstLoad = true;
-
-    webview.addEventListener('did-start-loading', () => {
+    const onStartLoading = () => {
       tStart = performance.now();
       this.updateTabInfo(tabId, { loading: true });
 
       if (isFirstLoad) {
         webview.classList.add('webview-loading');
       }
-    });
+    };
 
-    webview.addEventListener('did-navigate', (e) => {
+    const onNavigate = (e) => {
       if (isFirstLoad) {
         isFirstLoad = false;
       }
@@ -99,45 +98,65 @@ class WebPage extends React.Component {
       if (e.url && e.url !== 'about:blank') {
         debouncedUpdate({ url: e.url });
       }
-    });
+    };
 
-    webview.addEventListener('page-title-updated', (e) => {
+    const onTitleUpdated = (e) => {
       debouncedUpdate({ title: e.title });
-    });
+    };
 
-    webview.addEventListener('page-favicon-updated', (e) => {
+    const onFaviconUpdated = (e) => {
       if (e.favicons && e.favicons.length > 0) {
         debouncedUpdate({ favicon: e.favicons[0] });
       }
-    });
+    };
 
-    webview.addEventListener('did-stop-loading', () => {
+    const onStopLoading = () => {
       this.updateTabInfo(tabId, { loading: false });
-    });
+    };
 
-    webview.addEventListener('did-fail-load', (event) => {
+    const onFailLoad = (event) => {
       if (event.isMainFrame === false) return;
 
       this.updateTabInfo(tabId, { loading: false });
       webview.classList.remove('webview-loading');
-    });
+    };
 
-    // Handle fullscreen requests: make video fill the webview instead of going native fullscreen
-    webview.addEventListener('enter-html-full-screen', () => {
-      // Add CSS class to make webview fill entire window
+    const onEnterFullscreen = () => {
       webview.classList.add('webview-fullscreen');
-      // Hide navbar when in fullscreen
       this.setState({ showNav: false });
-    });
+    };
 
-    webview.addEventListener('leave-html-full-screen', () => {
-      // Remove fullscreen class
+    const onLeaveFullscreen = () => {
       webview.classList.remove('webview-fullscreen');
-      // Restore navbar
       this.setState({ showNav: true });
-    });
+    };
 
-    webview._listenersSetup = true;
+    webview.addEventListener('dom-ready', onDomReady, { once: true });
+    webview.addEventListener('did-finish-load', onFinishLoad);
+
+    let isFirstLoad = true;
+
+    webview.addEventListener('did-start-loading', onStartLoading);
+    webview.addEventListener('did-navigate', onNavigate);
+    webview.addEventListener('page-title-updated', onTitleUpdated);
+    webview.addEventListener('page-favicon-updated', onFaviconUpdated);
+    webview.addEventListener('did-stop-loading', onStopLoading);
+    webview.addEventListener('did-fail-load', onFailLoad);
+    webview.addEventListener('enter-html-full-screen', onEnterFullscreen);
+    webview.addEventListener('leave-html-full-screen', onLeaveFullscreen);
+
+    // Store references for cleanup
+    webview._eventListeners = {
+      'did-finish-load': onFinishLoad,
+      'did-start-loading': onStartLoading,
+      'did-navigate': onNavigate,
+      'page-title-updated': onTitleUpdated,
+      'page-favicon-updated': onFaviconUpdated,
+      'did-stop-loading': onStopLoading,
+      'did-fail-load': onFailLoad,
+      'enter-html-full-screen': onEnterFullscreen,
+      'leave-html-full-screen': onLeaveFullscreen
+    };
   };
 
   updateTabInfo = (tabId, updates) => {
@@ -155,14 +174,42 @@ class WebPage extends React.Component {
     const { tabs = [] } = this.props;
     tabs.forEach(tab => {
       const wv = this.webviewRefs[tab.id];
-      if (wv) this.setupWebviewListeners(wv, tab.id);
+      if (wv && !wv._listenersSetup) {
+        this.setupWebviewListeners(wv, tab.id);
+      }
     });
   }
+
+  cleanupWebviewListeners = (webview) => {
+    if (!webview || !webview._eventListeners) return;
+
+    Object.entries(webview._eventListeners).forEach(([eventName, handler]) => {
+      webview.removeEventListener(eventName, handler);
+    });
+
+    delete webview._eventListeners;
+    delete webview._listenersSetup;
+  };
 
   componentDidUpdate(prevProps) {
     const { tabs = [] } = this.props;
     const { tabs: prevTabs = [] } = prevProps;
 
+    // Clean up listeners for removed tabs
+    prevTabs.forEach(prevTab => {
+      const stillExists = tabs.find(t => t.id === prevTab.id);
+      if (!stillExists) {
+        const wv = this.webviewRefs[prevTab.id];
+        if (wv) {
+          this.cleanupWebviewListeners(wv);
+          delete this.webviewRefs[prevTab.id];
+        }
+        this.readyMap.delete(prevTab.id);
+        this.pendingUrl.delete(prevTab.id);
+      }
+    });
+
+    // Setup listeners for new tabs
     tabs.forEach(tab => {
       const wv = this.webviewRefs[tab.id];
       const wasNew = !prevTabs.find(t => t.id === tab.id);
@@ -179,6 +226,11 @@ class WebPage extends React.Component {
 
   componentWillUnmount() {
     this.unbindNavBar();
+
+    // Clean up all webview listeners
+    Object.values(this.webviewRefs).forEach(wv => {
+      this.cleanupWebviewListeners(wv);
+    });
   }
 
   getActiveWebview = () => {
@@ -212,7 +264,9 @@ class WebPage extends React.Component {
     if (!webview || !url || !url.trim()) return;
 
     if (webview._ready) {
-      webview.loadURL(url);
+      webview.loadURL(url).catch(() => {
+        // Silently ignore load errors (e.g., navigation cancelled)
+      });
     } else {
       this.pendingUrl.set(tabId, url);
       if (!this.readyMap.has(tabId)) {
