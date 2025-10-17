@@ -36,6 +36,7 @@ process.on('unhandledRejection', (reason, promise) => {
 const { setMainMenu } = require('./menu');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const fetch = require('cross-fetch');
+const { saveSession: saveSessionToFile, loadSession: loadSessionFromFile } = require('./sessionManager');
 
 let mainWindow;
 let isWindowVisible = true;
@@ -54,55 +55,34 @@ let currentTheme = 'system';  // 'system', 'light', 'dark'
 // Global shortcut management
 let currentGlobalShortcut = 'Control+Alt+Shift+0';
 
-// Session file path
-const sessionFilePath = path.join(app.getPath('userData'), 'session.json');
-
 // Save session to disk
 function saveSession() {
-  try {
-    const session = {
-      tabs: tabs.map(t => ({
-        url: t.url,
-        title: t.title,
-        favicon: t.favicon
-      })),
-      activeTabId: activeTabId,
-      theme: currentTheme,
-      globalShortcut: currentGlobalShortcut
-    };
+  const sessionData = {
+    tabs: tabs.map(t => ({
+      url: t.url,
+      title: t.title,
+      favicon: t.favicon
+    })),
+    activeTabId: activeTabId,
+    theme: currentTheme,
+    globalShortcut: currentGlobalShortcut
+  };
 
-    // Save window bounds and opacity if window exists
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      const bounds = mainWindow.getBounds();
-      const opacity = mainWindow.getOpacity();
-      session.windowBounds = bounds;
-      session.opacity = opacity;
-      console.log('[Session] Saved window bounds:', bounds, 'opacity:', opacity);
-    }
-
-    fs.writeFileSync(sessionFilePath, JSON.stringify(session, null, 2));
-    console.log('[Session] Saved session:', session.tabs.length, 'tabs');
-  } catch (err) {
-    console.error('[Session] Failed to save:', err);
+  // Save window bounds and opacity if window exists
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    const bounds = mainWindow.getBounds();
+    const opacity = mainWindow.getOpacity();
+    sessionData.windowBounds = bounds;
+    sessionData.opacity = opacity;
+    console.log('[Session] Saved window bounds:', bounds, 'opacity:', opacity);
   }
+
+  saveSessionToFile(sessionData);
 }
 
 // Load session from disk
 function loadSession() {
-  try {
-    if (!fs.existsSync(sessionFilePath)) {
-      console.log('[Session] No saved session found');
-      return null;
-    }
-
-    const data = fs.readFileSync(sessionFilePath, 'utf8');
-    const session = JSON.parse(data);
-    console.log('[Session] Loaded session:', session.tabs?.length || 0, 'tabs');
-    return session;
-  } catch (err) {
-    console.error('[Session] Failed to load:', err);
-    return null;
-  }
+  return loadSessionFromFile();
 }
 
 // Restore session
@@ -503,7 +483,7 @@ function bindTabShortcuts() {
   bindShortcutsToWebContents(mainWindow.webContents);
 }
 
-function registerGlobalShortcut(shortcut) {
+function registerGlobalShortcut(shortcut, skipSave = false) {
   // Unregister previous shortcut
   globalShortcut.unregisterAll();
 
@@ -516,7 +496,10 @@ function registerGlobalShortcut(shortcut) {
     if (success) {
       console.log(`[Shortcut] Successfully registered: ${shortcut}`);
       currentGlobalShortcut = shortcut;
-      saveSession();
+      // Only save session if explicitly requested (e.g., user changed shortcut)
+      if (!skipSave) {
+        saveSession();
+      }
       return true;
     } else {
       console.error(`[Shortcut] Failed to register: ${shortcut}`);
@@ -826,7 +809,8 @@ app.on('ready', async function () {
   listenUrlLoader();
 
   // Register global shortcut (uses restored shortcut from session or default)
-  registerGlobalShortcut(currentGlobalShortcut);
+  // Skip saving on initial registration to avoid overwriting session before tabs are restored
+  registerGlobalShortcut(currentGlobalShortcut, true);
 
   app.on('web-contents-created', (event, contents) => {
     // Increase max listeners to avoid warnings (webviews have many internal listeners)
