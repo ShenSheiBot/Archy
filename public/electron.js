@@ -65,6 +65,7 @@ function saveSession() {
     activeTabId: tabManager.getActiveTabId(),
     theme: themeManager.getCurrentTheme(),
     globalShortcut: shortcutsManager.getCurrentGlobalShortcut(),
+    detachedModeShortcut: shortcutsManager.getDetachedModeShortcut(),
     startup: startupConfig
   };
 
@@ -98,6 +99,11 @@ function restoreSession() {
   // Restore global shortcut
   if (session.globalShortcut) {
     shortcutsManager.setCurrentGlobalShortcut(session.globalShortcut);
+  }
+
+  // Restore detached mode shortcut
+  if (session.detachedModeShortcut) {
+    shortcutsManager.setDetachedModeShortcut(session.detachedModeShortcut);
   }
 
   // Restore startup configuration
@@ -267,7 +273,7 @@ function createWindow() {
     restoreSession();
   });
 
-  mainWindow.on('ready-to-show', () => {
+  mainWindow.once('ready-to-show', () => {
     if (tabManager.getTabs().length === 0) {
       mainWindow.setBrowserView(null);
     }
@@ -276,6 +282,9 @@ function createWindow() {
     windowManager.setWindowVisible(true);
 
     bindTabShortcuts();
+
+    // Configure native window properties (only needed once at startup)
+    windowManager.configureNativeWindow(mainWindow);
   });
 
   mainWindow.on('close', function () {
@@ -289,20 +298,11 @@ function createWindow() {
     tabShortcutsBound = false;
   });
 
-  ['enter-full-screen', 'leave-full-screen', 'restore', 'show'].forEach(evt => {
+  // Force redraw to prevent blurry text after show/restore
+  ['show', 'restore'].forEach(evt => {
     mainWindow.on(evt, () => {
-      ensureOverlayState(mainWindow);
-      // Force redraw to prevent blurry text after state changes
-      if (evt === 'show' || evt === 'restore') {
-        setImmediate(() => forceRedraw(mainWindow));
-      }
+      setImmediate(() => forceRedraw(mainWindow));
     });
-  });
-
-  mainWindow.on('always-on-top-changed', (_event, isAlwaysOnTop) => {
-    if (!isAlwaysOnTop) {
-      ensureOverlayState(mainWindow);
-    }
   });
 
   mainWindow.webContents.setWindowOpenHandler(() => {
@@ -365,6 +365,17 @@ function bindShortcutsToWebContents(webContents) {
         mainWindow.webContents.send('search.toggle');
       }
     },
+    reloadTab: () => {
+      // Only reload if this is a webview
+      if (webContents.getType && webContents.getType() === 'webview') {
+        webContents.reloadIgnoringCache();
+      } else {
+        // For main window, send event to reload active tab
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('webPage.reload');
+        }
+      }
+    },
     previousTab: () => {
       const activeTabId = tabManager.getActiveTabId();
       const tabs = tabManager.getTabs();
@@ -412,6 +423,21 @@ function registerGlobalShortcut(shortcut, skipSave = false) {
   return success;
 }
 
+function registerDetachedModeShortcut(shortcut, skipSave = false) {
+  const success = shortcutsManager.registerDetachedModeShortcut(shortcut, () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      windowManager.toggleDetachedMode(mainWindow);
+    }
+  });
+
+  // Only save session if explicitly requested (e.g., user changed shortcut)
+  if (success && !skipSave) {
+    saveSession();
+  }
+
+  return success;
+}
+
 function bindIpc() {
   bindIpcHandlers({
     getOpacity: () => mainWindow.getOpacity() * 100,
@@ -443,10 +469,6 @@ function bindIpc() {
       saveSession();
     }
   });
-}
-
-function ensureOverlayState(win) {
-  windowManager.ensureOverlayState(win);
 }
 
 function disableDetachedMode() {
@@ -542,9 +564,10 @@ app.on('ready', async function () {
   checkAndDownloadUpdate();
   listenUrlLoader();
 
-  // Register global shortcut (uses restored shortcut from session or default)
+  // Register global shortcuts (uses restored shortcuts from session or defaults)
   // Skip saving on initial registration to avoid overwriting session before tabs are restored
   registerGlobalShortcut(shortcutsManager.getCurrentGlobalShortcut(), true);
+  registerDetachedModeShortcut(shortcutsManager.getDetachedModeShortcut(), true);
 
   app.on('web-contents-created', (event, contents) => {
     // Increase max listeners to avoid warnings (webviews have many internal listeners)
@@ -575,12 +598,8 @@ app.on('browser-window-focus', disableDetachedMode);
 app.on('activate', function () {
   disableDetachedMode();
 
-  if (mainWindow) {
-    ensureOverlayState(mainWindow);
-
-    if (!mainWindow.isVisible()) {
-      mainWindow.show();
-    }
+  if (mainWindow && !mainWindow.isVisible()) {
+    mainWindow.show();
 
     if (typeof mainWindow.moveTop === 'function') {
       mainWindow.moveTop();

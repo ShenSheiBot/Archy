@@ -6,51 +6,104 @@ const { globalShortcut } = require('electron');
  */
 
 // Global shortcut state
-let currentGlobalShortcut = 'Control+Alt+Shift+0';
+let globalShortcuts = {
+  toggleWindow: 'Control+Alt+Shift+0',
+  toggleDetached: 'Command+Shift+D'
+};
+
+// Registered callbacks for each shortcut
+let shortcutCallbacks = {};
 
 /**
- * Get current global shortcut
+ * Get current global shortcut for toggle window
  * @returns {string} Current global shortcut
  */
 function getCurrentGlobalShortcut() {
-  return currentGlobalShortcut;
+  return globalShortcuts.toggleWindow;
 }
 
 /**
- * Set current global shortcut
+ * Set current global shortcut for toggle window
  * @param {string} shortcut - Shortcut to set
  */
 function setCurrentGlobalShortcut(shortcut) {
-  currentGlobalShortcut = shortcut;
+  globalShortcuts.toggleWindow = shortcut;
 }
 
 /**
- * Register global shortcut
+ * Get detached mode shortcut
+ * @returns {string} Detached mode shortcut
+ */
+function getDetachedModeShortcut() {
+  return globalShortcuts.toggleDetached;
+}
+
+/**
+ * Set detached mode shortcut
+ * @param {string} shortcut - Shortcut to set
+ */
+function setDetachedModeShortcut(shortcut) {
+  globalShortcuts.toggleDetached = shortcut;
+}
+
+/**
+ * Get all global shortcuts
+ * @returns {Object} All global shortcuts
+ */
+function getAllGlobalShortcuts() {
+  return { ...globalShortcuts };
+}
+
+/**
+ * Register a single global shortcut
+ * @param {string} key - Key name (e.g., 'toggleWindow', 'toggleDetached')
+ * @param {string} shortcut - Shortcut to register
+ * @param {Function} callback - Callback to execute when shortcut is triggered
+ * @returns {boolean} Success status
+ */
+function registerSingleGlobalShortcut(key, shortcut, callback) {
+  try {
+    // Unregister if already exists
+    if (globalShortcut.isRegistered(shortcut)) {
+      globalShortcut.unregister(shortcut);
+    }
+
+    const success = globalShortcut.register(shortcut, callback);
+
+    if (success) {
+      console.log(`[Shortcut] Successfully registered ${key}: ${shortcut}`);
+      globalShortcuts[key] = shortcut;
+      shortcutCallbacks[key] = callback;
+      return true;
+    } else {
+      console.error(`[Shortcut] Failed to register ${key}: ${shortcut}`);
+      return false;
+    }
+  } catch (err) {
+    console.error(`[Shortcut] Error registering ${key}: ${shortcut}`, err);
+    return false;
+  }
+}
+
+/**
+ * Register global shortcut for toggle window
  * @param {string} shortcut - Shortcut to register
  * @param {Function} callback - Callback to execute when shortcut is triggered
  * @param {boolean} skipSave - Skip saving session after registration
  * @returns {boolean} Success status
  */
 function registerGlobalShortcut(shortcut, callback, skipSave = false) {
-  // Unregister previous shortcut
-  globalShortcut.unregisterAll();
+  return registerSingleGlobalShortcut('toggleWindow', shortcut, callback);
+}
 
-  // Register new shortcut
-  try {
-    const success = globalShortcut.register(shortcut, callback);
-
-    if (success) {
-      console.log(`[Shortcut] Successfully registered: ${shortcut}`);
-      currentGlobalShortcut = shortcut;
-      return true;
-    } else {
-      console.error(`[Shortcut] Failed to register: ${shortcut}`);
-      return false;
-    }
-  } catch (err) {
-    console.error(`[Shortcut] Error registering: ${shortcut}`, err);
-    return false;
-  }
+/**
+ * Register detached mode global shortcut
+ * @param {string} shortcut - Shortcut to register
+ * @param {Function} callback - Callback to execute when shortcut is triggered
+ * @returns {boolean} Success status
+ */
+function registerDetachedModeShortcut(shortcut, callback) {
+  return registerSingleGlobalShortcut('toggleDetached', shortcut, callback);
 }
 
 /**
@@ -58,6 +111,7 @@ function registerGlobalShortcut(shortcut, callback, skipSave = false) {
  */
 function unregisterAllGlobalShortcuts() {
   globalShortcut.unregisterAll();
+  shortcutCallbacks = {};
   console.log('[Shortcut] Unregistered all global shortcuts');
 }
 
@@ -93,6 +147,13 @@ function bindShortcutsToWebContents(webContents, callbacks) {
       return;
     }
 
+    // Cmd/Ctrl+R: Reload current tab
+    if (input.meta && input.key === 'r' && input.type === 'keyDown') {
+      event.preventDefault();
+      if (callbacks.reloadTab) callbacks.reloadTab();
+      return;
+    }
+
     // Ctrl+Shift+Tab: Previous tab
     if (input.control && input.shift && input.key === 'Tab' && input.type === 'keyDown') {
       event.preventDefault();
@@ -112,7 +173,11 @@ function bindShortcutsToWebContents(webContents, callbacks) {
 module.exports = {
   getCurrentGlobalShortcut,
   setCurrentGlobalShortcut,
+  getDetachedModeShortcut,
+  setDetachedModeShortcut,
+  getAllGlobalShortcuts,
   registerGlobalShortcut,
+  registerDetachedModeShortcut,
   unregisterAllGlobalShortcuts,
   bindShortcutsToWebContents
 };

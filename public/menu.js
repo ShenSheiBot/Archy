@@ -192,23 +192,6 @@ function setMainMenu(mainWindow) {
           type: 'separator'
         },
         {
-          label: 'Detached Mode',
-          accelerator: 'CmdOrCtrl+Shift+D',
-          click() {
-            // Note: No dock badge since dock is hidden
-            mainWindow.setIgnoreMouseEvents(true);
-            // Hide navbar when entering detached mode (can't interact with it anyway)
-            mainWindow.webContents.send('nav.hide');
-            // Hide macOS traffic lights in detached mode
-            if (isMac) {
-              mainWindow.setWindowButtonVisibility(false);
-            }
-          }
-        },
-        {
-          type: 'separator'
-        },
-        {
           label: 'Developer Tools',
           accelerator: 'CmdOrCtrl+Alt+I',
           click() {

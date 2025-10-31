@@ -13,6 +13,7 @@ class WebPage extends React.Component {
   zoomLevelsByDomain = new Map(); // Track zoom level for each domain
   zoomTimeout = null;
   navStateBeforeFullscreen = null; // Remember navbar state before entering fullscreen
+  navStateBeforeDetached = null; // Remember navbar state before entering detached mode
 
   state = {
     showNav: this.props.showNav,
@@ -45,16 +46,67 @@ class WebPage extends React.Component {
     ipcRenderer.send('nav.show');
   };
 
+  enterDetachedMode = () => {
+    // Remember navbar state before entering detached mode
+    this.navStateBeforeDetached = this.state.showNav;
+
+    // Hide navbar when entering detached mode
+    this.setState({ showNav: false });
+
+    // Disable pointer events on all webviews in detached mode
+    Object.values(this.webviewRefs).forEach(webview => {
+      if (webview) {
+        webview.style.pointerEvents = 'none';
+      }
+    });
+  };
+
+  restoreDetachedMode = () => {
+    // Restore detached mode without re-saving navbar state
+    // Just apply the detached mode UI (pointer-events disabled)
+    Object.values(this.webviewRefs).forEach(webview => {
+      if (webview) {
+        webview.style.pointerEvents = 'none';
+      }
+    });
+  };
+
+  exitDetachedMode = () => {
+    // Re-enable pointer events on all webviews
+    Object.values(this.webviewRefs).forEach(webview => {
+      if (webview) {
+        webview.style.pointerEvents = 'auto';
+      }
+    });
+
+    // Restore navbar state from before detached mode
+    if (this.navStateBeforeDetached !== null && this.navStateBeforeDetached) {
+      this.setState({ showNav: true });
+      this.navStateBeforeDetached = null;
+      // Show traffic lights when restoring navbar
+      ipcRenderer.send('traffic-lights.show');
+    } else {
+      this.navStateBeforeDetached = null;
+      // Don't show traffic lights if navbar should stay hidden (fullscreen)
+    }
+  };
+
   bindNavBar() {
     ipcRenderer.on('nav.toggle', this.toggleNavBar);
     ipcRenderer.on('nav.show', this.showNavBarInternal);
     ipcRenderer.on('nav.hide', this.hideNavBarInternal);
+    ipcRenderer.on('detached.enter', this.enterDetachedMode);
+    ipcRenderer.on('detached.restore', this.restoreDetachedMode);
+    ipcRenderer.on('detached.exit', this.exitDetachedMode);
   }
 
   unbindNavBar() {
     ipcRenderer.removeListener('nav.toggle', this.toggleNavBar);
     ipcRenderer.removeListener('nav.show', this.showNavBarInternal);
     ipcRenderer.removeListener('nav.hide', this.hideNavBarInternal);
+    ipcRenderer.removeListener('detached.enter', this.enterDetachedMode);
+    ipcRenderer.removeListener('detached.restore', this.restoreDetachedMode);
+    ipcRenderer.removeListener('detached.exit', this.exitDetachedMode);
   }
 
   bindZoomHandlers() {
@@ -111,6 +163,15 @@ class WebPage extends React.Component {
 
     const onFinishLoad = () => {
       webview.classList.remove('webview-loading');
+
+      // Auto-focus webview after loading so keyboard shortcuts work
+      if (this.props.activeTabId === tabId) {
+        try {
+          webview.focus();
+        } catch (err) {
+          // Silently ignore focus errors
+        }
+      }
     };
 
     const onStartLoading = () => {
@@ -226,13 +287,27 @@ class WebPage extends React.Component {
     this.bindNavBar();
     this.bindZoomHandlers();
 
-    const { tabs = [] } = this.props;
+    const { tabs = [], activeTabId } = this.props;
     tabs.forEach(tab => {
       const wv = this.webviewRefs[tab.id];
       if (wv && !wv._listenersSetup) {
         this.setupWebviewListeners(wv, tab.id);
       }
     });
+
+    // Auto-focus active webview on mount
+    if (activeTabId) {
+      const activeWebview = this.webviewRefs[activeTabId];
+      if (activeWebview) {
+        setTimeout(() => {
+          try {
+            activeWebview.focus();
+          } catch (err) {
+            // Silently ignore focus errors
+          }
+        }, 100);
+      }
+    }
   }
 
   cleanupWebviewListeners = (webview) => {
@@ -247,8 +322,8 @@ class WebPage extends React.Component {
   };
 
   componentDidUpdate(prevProps) {
-    const { tabs = [] } = this.props;
-    const { tabs: prevTabs = [] } = prevProps;
+    const { tabs = [], activeTabId } = this.props;
+    const { tabs: prevTabs = [], activeTabId: prevActiveTabId } = prevProps;
 
     // Clean up listeners for removed tabs
     prevTabs.forEach(prevTab => {
@@ -277,6 +352,21 @@ class WebPage extends React.Component {
         }
       }
     });
+
+    // Auto-focus webview when switching tabs
+    if (activeTabId && activeTabId !== prevActiveTabId) {
+      const activeWebview = this.webviewRefs[activeTabId];
+      if (activeWebview) {
+        // Delay focus slightly to ensure DOM is ready
+        setTimeout(() => {
+          try {
+            activeWebview.focus();
+          } catch (err) {
+            // Silently ignore focus errors
+          }
+        }, 50);
+      }
+    }
   }
 
   componentWillUnmount() {
@@ -334,6 +424,15 @@ class WebPage extends React.Component {
         this.setupWebviewListeners(webview, tabId);
       }
     }
+
+    // Auto-focus webview after navigation starts so keyboard shortcuts work
+    setTimeout(() => {
+      try {
+        webview.focus();
+      } catch (err) {
+        // Silently ignore focus errors
+      }
+    }, 50);
   };
 
   getDomainFromUrl = (url) => {
