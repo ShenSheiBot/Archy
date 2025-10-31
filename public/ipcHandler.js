@@ -58,6 +58,7 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('startup.url.set');
   ipcMain.removeAllListeners('fullscreen.enter');
   ipcMain.removeAllListeners('fullscreen.leave');
+  ipcMain.removeAllListeners('traffic-lights.show');
 
   // Opacity handlers
   ipcMain.on('opacity.get', (event) => {
@@ -179,6 +180,13 @@ function bindIpcHandlers(handlers) {
   });
 
   ipcMain.on('fullscreen.leave', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (process.platform === 'darwin' && win) {
+      win.setWindowButtonVisibility(true);
+    }
+  });
+
+  ipcMain.on('traffic-lights.show', (event) => {
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(true);

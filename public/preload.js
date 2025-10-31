@@ -24,7 +24,8 @@ contextBridge.exposeInMainWorld('electron', {
         'startup.behavior.set',
         'startup.url.set',
         'fullscreen.enter',
-        'fullscreen.leave'
+        'fullscreen.leave',
+        'traffic-lights.show'
         // reload, back, forward, search are handled directly by webview in renderer
       ];
       if (validChannels.includes(channel)) {
@@ -45,7 +46,10 @@ contextBridge.exposeInMainWorld('electron', {
         'search.toggle',
         'zoom.in',
         'zoom.out',
-        'zoom.reset'
+        'zoom.reset',
+        'detached.enter',
+        'detached.restore',
+        'detached.exit'
       ];
       if (validChannels.includes(channel)) {
         // Deliberately strip event as it includes `sender`
@@ -65,7 +69,10 @@ contextBridge.exposeInMainWorld('electron', {
         'search.toggle',
         'zoom.in',
         'zoom.out',
-        'zoom.reset'
+        'zoom.reset',
+        'detached.enter',
+        'detached.restore',
+        'detached.exit'
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeListener(channel, func);

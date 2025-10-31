@@ -10,6 +10,13 @@ node_modules/
 /dist
 dist-electron/
 
+# Native module build artifacts
+native/build/
+native/package-lock.json
+*.node.d
+*.o
+*.o.d
+
 # Environment variables
 .env
 .env.local
