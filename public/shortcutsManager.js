@@ -71,7 +71,6 @@ function registerSingleGlobalShortcut(key, shortcut, callback) {
     const success = globalShortcut.register(shortcut, callback);
 
     if (success) {
-      console.log(`[Shortcut] Successfully registered ${key}: ${shortcut}`);
       globalShortcuts[key] = shortcut;
       shortcutCallbacks[key] = callback;
       return true;
@@ -112,7 +111,6 @@ function registerDetachedModeShortcut(shortcut, callback) {
 function unregisterAllGlobalShortcuts() {
   globalShortcut.unregisterAll();
   shortcutCallbacks = {};
-  console.log('[Shortcut] Unregistered all global shortcuts');
 }
 
 /**

@@ -75,7 +75,6 @@ function bindIpcHandlers(handlers) {
   });
 
   ipcMain.on('theme.set', (event, theme) => {
-    console.log(`[IPC] Received theme.set: ${theme}`);
     setTheme(theme);
   });
 
@@ -85,12 +84,10 @@ function bindIpcHandlers(handlers) {
   });
 
   ipcMain.on('shortcut.set', (event, shortcut) => {
-    console.log(`[IPC] Received shortcut.set: ${shortcut}`);
     setShortcut(shortcut);
   });
 
   ipcMain.on('shortcut.unregister', (event) => {
-    console.log(`[IPC] Received shortcut.unregister`);
     unregisterShortcut();
   });
 
@@ -121,35 +118,67 @@ function bindIpcHandlers(handlers) {
 
   // Navbar relay handlers - relay messages from renderer to renderer
   ipcMain.on('nav.hide', (event) => {
-    // Get the window that sent this message
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Update viewManager bounds (navbar shrinks to 15px drag strip)
+    if (win && win.viewManager) {
+      win.viewManager.setNavBarVisible(false);
+    }
 
     // Hide macOS traffic lights on macOS
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(false);
     }
 
+    // Notify navbar to show drag strip
     relayToRenderer('nav.hide');
   });
 
   ipcMain.on('nav.show', (event) => {
-    // Get the window that sent this message
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Update viewManager bounds (navbar expands to full height)
+    if (win && win.viewManager) {
+      win.viewManager.setNavBarVisible(true);
+    }
 
     // Show macOS traffic lights on macOS
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(true);
     }
 
+    // Notify navbar to show full UI
     relayToRenderer('nav.show');
   });
 
-  ipcMain.on('nav.toggle', () => {
-    relayToRenderer('nav.toggle');
+  ipcMain.on('nav.toggle', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Toggle navbar visibility
+    if (win && win.viewManager && win.viewManager.navBarView) {
+      const currentlyVisible = win.viewManager.showNav;
+      const newVisible = !currentlyVisible;
+
+      // Update viewManager bounds
+      win.viewManager.setNavBarVisible(newVisible);
+
+      // Update traffic lights
+      if (process.platform === 'darwin') {
+        win.setWindowButtonVisibility(newVisible);
+      }
+
+      // Notify navbar
+      const message = newVisible ? 'nav.show' : 'nav.hide';
+      win.viewManager.navBarView.webContents.send(message);
+    }
   });
 
   ipcMain.on('settings.toggle', (event, isShown) => {
-    relayToRenderer('settings.toggle', isShown);
+    // Forward to overlayView (not main window)
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager && win.viewManager.overlayView) {
+      win.viewManager.overlayView.webContents.send('settings.toggle', isShown);
+    }
   });
 
   // Startup configuration handlers
@@ -158,7 +187,6 @@ function bindIpcHandlers(handlers) {
   });
 
   ipcMain.on('startup.behavior.set', (event, behavior) => {
-    console.log(`[IPC] Received startup.behavior.set: ${behavior}`);
     setStartupBehavior(behavior);
   });
 
@@ -167,7 +195,6 @@ function bindIpcHandlers(handlers) {
   });
 
   ipcMain.on('startup.url.set', (event, url) => {
-    console.log(`[IPC] Received startup.url.set: ${url}`);
     setStartupUrl(url);
   });
 
@@ -181,7 +208,8 @@ function bindIpcHandlers(handlers) {
 
   ipcMain.on('fullscreen.leave', (event) => {
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
-    if (process.platform === 'darwin' && win) {
+    // Only show traffic lights if navbar is visible
+    if (process.platform === 'darwin' && win && win.viewManager && win.viewManager.showNav) {
       win.setWindowButtonVisibility(true);
     }
   });
@@ -190,6 +218,125 @@ function bindIpcHandlers(handlers) {
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(true);
+    }
+  });
+
+  // Search handlers
+  ipcMain.removeAllListeners('search.find');
+  ipcMain.removeAllListeners('search.clear');
+
+  // Store search listeners to avoid re-adding on every search
+  const searchListeners = new WeakMap();
+
+  ipcMain.on('search.find', (event, { text, forward, findNext }) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const activeView = win.viewManager.getActiveView();
+      if (activeView && activeView.webContents) {
+        // Only set up listener once per webContents
+        if (!searchListeners.has(activeView.webContents)) {
+          const resultListener = (e, result) => {
+            // Send result back to overlay
+            if (win.viewManager && win.viewManager.overlayView) {
+              win.viewManager.overlayView.webContents.send('search.result', result);
+            }
+          };
+
+          activeView.webContents.on('found-in-page', resultListener);
+          searchListeners.set(activeView.webContents, resultListener);
+
+          // Clean up listener when webContents is destroyed
+          activeView.webContents.once('destroyed', () => {
+            searchListeners.delete(activeView.webContents);
+          });
+        }
+
+        // Start search - findInPage returns the requestId
+        activeView.webContents.findInPage(text, {
+          forward: forward !== false,
+          findNext: findNext === true
+        });
+      }
+    }
+  });
+
+  ipcMain.on('search.clear', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const activeView = win.viewManager.getActiveView();
+      if (activeView && activeView.webContents) {
+        activeView.webContents.stopFindInPage('clearSelection');
+      }
+    }
+  });
+
+  // Zoom handlers
+  ipcMain.removeAllListeners('zoom.in');
+  ipcMain.removeAllListeners('zoom.out');
+  ipcMain.removeAllListeners('zoom.reset');
+
+  ipcMain.on('zoom.in', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomIn();
+    }
+  });
+
+  ipcMain.on('zoom.out', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomOut();
+    }
+  });
+
+  ipcMain.on('zoom.reset', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomReset();
+    }
+  });
+
+  // Navigation handlers (back, forward, reload)
+  ipcMain.removeAllListeners('webPage.reload');
+
+  ipcMain.on('tab.reload', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents) {
+        view.webContents.reloadIgnoringCache();
+      }
+    }
+  });
+
+  // Handle reload for active tab (legacy compatibility)
+  ipcMain.on('webPage.reload', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const activeView = win.viewManager.getActiveView();
+      if (activeView && activeView.webContents) {
+        activeView.webContents.reloadIgnoringCache();
+      }
+    }
+  });
+
+  ipcMain.on('tab.back', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents && view.webContents.canGoBack()) {
+        view.webContents.goBack();
+      }
+    }
+  });
+
+  ipcMain.on('tab.forward', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents && view.webContents.canGoForward()) {
+        view.webContents.goForward();
+      }
     }
   });
 }

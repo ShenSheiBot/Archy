@@ -11,6 +11,17 @@ let nextTabId = 1;
 // Pending tab updates (for debouncing)
 const pendingUpdates = new Map();
 
+// WebContentsViewManager instance
+let viewManager = null;
+
+/**
+ * Set the viewManager instance (called from electron.js)
+ * @param {WebContentsViewManager} vm - viewManager instance
+ */
+function setViewManager(vm) {
+  viewManager = vm;
+}
+
 /**
  * Get all tabs
  * @returns {Array} Array of tab objects
@@ -65,6 +76,13 @@ function createTab(targetUrl = '', sendUpdateCallback, notifyRendererCallback) {
   tabs.push(tab);
   activeTabId = tabId;
 
+  // Create WebContentsView in main process
+  if (viewManager) {
+    viewManager.createView(tabId, tab.url);
+    // BUG FIX: Switch to the new tab to make it visible
+    viewManager.switchToTab(tabId);
+  }
+
   if (sendUpdateCallback) {
     sendUpdateCallback();
   }
@@ -88,6 +106,11 @@ function switchToTab(tabId, sendUpdateCallback) {
 
   activeTabId = tabId;
 
+  // Switch WebContentsView in main process
+  if (viewManager) {
+    viewManager.switchToTab(tabId);
+  }
+
   if (sendUpdateCallback) {
     sendUpdateCallback();
   }
@@ -101,16 +124,26 @@ function switchToTab(tabId, sendUpdateCallback) {
  * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
  * @returns {boolean} True if successful
  */
-function closeTab(tabId, sendUpdateCallback) {
+async function closeTab(tabId, sendUpdateCallback) {
   const tabIndex = tabs.findIndex(t => t.id === tabId);
   if (tabIndex === -1) return false;
 
   tabs.splice(tabIndex, 1);
 
+  // Close WebContentsView in main process
+  if (viewManager) {
+    await viewManager.closeTab(tabId);
+  }
+
+  // Switch to another tab if closing active tab
   if (activeTabId === tabId) {
     if (tabs.length > 0) {
       const newActiveIndex = Math.min(tabIndex, tabs.length - 1);
       activeTabId = tabs[newActiveIndex].id;
+      // Switch view to new active tab
+      if (viewManager) {
+        viewManager.switchToTab(activeTabId);
+      }
     } else {
       activeTabId = null;
     }
@@ -135,6 +168,16 @@ function navigateTab(tabId, targetUrl, sendUpdateCallback) {
   if (!tab) return false;
 
   tab.url = targetUrl;
+
+  // Actually load the URL in the WebContentsView
+  if (viewManager) {
+    const view = viewManager.getView(tabId);
+    if (view && view.webContents) {
+      view.webContents.loadURL(targetUrl).catch(err => {
+        console.error(`Failed to navigate tab ${tabId} to ${targetUrl}:`, err);
+      });
+    }
+  }
 
   if (sendUpdateCallback) {
     sendUpdateCallback();
@@ -217,5 +260,6 @@ module.exports = {
   navigateTab,
   updateTab,
   getTabsData,
-  clearTabs
+  clearTabs,
+  setViewManager
 };

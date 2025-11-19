@@ -9,6 +9,7 @@ let isWindowVisible = true;
 let monitorStarted = false;
 const monitorTimers = new Map(); // Per-window monitoring timers
 let isDetachedMode = false;
+let navbarVisibleBeforeDetached = true; // Save navbar state before entering detached mode
 
 /**
  * Get window visibility state
@@ -53,18 +54,47 @@ function toggleDetachedMode(mainWindow) {
 
   if (isDetachedMode) {
     // Enter detached mode
+    // Save current navbar visibility state
+    if (mainWindow.viewManager) {
+      navbarVisibleBeforeDetached = mainWindow.viewManager.showNav;
+
+      // Always hide navbar in detached mode
+      if (navbarVisibleBeforeDetached) {
+        mainWindow.viewManager.setNavBarVisible(false);
+
+        // Notify navbar to update its state
+        if (mainWindow.viewManager.navBarView) {
+          mainWindow.viewManager.navBarView.webContents.send('nav.hide');
+        }
+      }
+    }
+
     mainWindow.setIgnoreMouseEvents(true, { forward: true });
-    // Don't send nav.hide - let renderer save state first, then hide navbar itself
     mainWindow.webContents.send('detached.enter');
+
+    // Hide macOS traffic lights
     if (process.platform === 'darwin') {
       mainWindow.setWindowButtonVisibility(false);
     }
   } else {
     // Exit detached mode
     mainWindow.setIgnoreMouseEvents(false);
-    // Don't send nav.show - let renderer restore its saved state
     mainWindow.webContents.send('detached.exit');
-    // Don't show traffic lights here - let renderer decide based on navbar state
+
+    // Restore navbar visibility to previous state
+    if (mainWindow.viewManager && navbarVisibleBeforeDetached) {
+      mainWindow.viewManager.setNavBarVisible(true);
+
+      // Notify navbar to update its state
+      if (mainWindow.viewManager.navBarView) {
+        mainWindow.viewManager.navBarView.webContents.send('nav.show');
+      }
+
+      // Restore macOS traffic lights if navbar is shown
+      if (process.platform === 'darwin') {
+        mainWindow.setWindowButtonVisibility(true);
+      }
+    }
   }
 }
 
@@ -99,8 +129,6 @@ function hardBounceOverlay(win, reason = 'hard-bounce') {
     if (typeof win.moveTop === 'function') {
       win.moveTop();
     }
-
-    console.log(`[WindowManager] ⚡ hardBounceOverlay(${reason}) done`);
   } catch (err) {
     console.error(`[WindowManager] Failed to hard bounce (${reason}):`, err);
   }
@@ -171,6 +199,15 @@ function toggleWindow(mainWindow) {
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
       // Send detached.restore (not detached.enter) to apply state without re-saving
       mainWindow.webContents.send('detached.restore');
+
+      // Ensure navbar is hidden in detached mode
+      if (mainWindow.viewManager) {
+        mainWindow.viewManager.setNavBarVisible(false);
+        if (mainWindow.viewManager.navBarView) {
+          mainWindow.viewManager.navBarView.webContents.send('nav.hide');
+        }
+      }
+
       if (process.platform === 'darwin') {
         mainWindow.setWindowButtonVisibility(false);
       }
@@ -236,7 +273,6 @@ function configureNativeWindow(win) {
  */
 function startOverlayMonitor(win, intervalMs = 60000) {
   // No-op: native configuration is set once and persists
-  console.log('[WindowManager] Overlay monitoring disabled (using native configuration)');
 }
 
 function stopOverlayMonitor(win) {
