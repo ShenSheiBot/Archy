@@ -2,6 +2,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;  /* 响应式：允许换行 */
 }
 .settings-wrap .setting-control {
   display: flex;
@@ -263,54 +264,6 @@ html[data-theme="dark"] .settings-wrap .btn-shortcut-action.btn-save {
 
 html[data-theme="dark"] .settings-wrap .btn-shortcut-action.btn-cancel {
   color: #f87171;
-}
-
-/* Hide navbar button */
-.settings-wrap .btn-hide-navbar {
-  background: transparent;
-  border: none;
-  color: #666;
-  font-size: 16px;
-  cursor: pointer;
-  padding: 4px 8px;
-  border-radius: 4px;
-  transition: background 0.2s, color 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 32px;
-  height: 28px;
-}
-.settings-wrap .btn-hide-navbar:hover {
-  background: rgba(0, 0, 0, 0.1);
-  color: #333;
-}
-.settings-wrap .btn-hide-navbar:active {
-  background: rgba(0, 0, 0, 0.15);
-}
-
-@media (prefers-color-scheme: dark) {
-  .settings-wrap .btn-hide-navbar {
-    color: #aaa;
-  }
-  .settings-wrap .btn-hide-navbar:hover {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e0e0e0;
-  }
-  .settings-wrap .btn-hide-navbar:active {
-    background: rgba(255, 255, 255, 0.15);
-  }
-}
-
-html[data-theme="dark"] .settings-wrap .btn-hide-navbar {
-  color: #aaa;
-}
-html[data-theme="dark"] .settings-wrap .btn-hide-navbar:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: #e0e0e0;
-}
-html[data-theme="dark"] .settings-wrap .btn-hide-navbar:active {
-  background: rgba(255, 255, 255, 0.15);
 }
 
 /* Startup options */

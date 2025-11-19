@@ -1,0 +1,28 @@
+/**
+ * NavBar WebContentsView Styles
+ *
+ * This CSS is specific to the navbar view (38px height)
+ * Global styles are inherited from ../global.css
+ */
+
+#navbar-root {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.navbar-container {
+  height: 100%;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  background: transparent;
+  -webkit-app-region: drag;
+}
+
+/* Make interactive elements non-draggable */
+.navbar-container button,
+.navbar-container input,
+.navbar-container a {
+  -webkit-app-region: no-drag;
+}

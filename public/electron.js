@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const pdfWindow = require('electron-pdf-window');
 const path = require('path');
@@ -24,12 +24,6 @@ process.on('uncaughtException', (err) => {
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  // Silently ignore "Script failed to execute" errors from webview IPC
-  // These happen when webviews are destroyed during navigation
-  if (reason && reason.message && reason.message.includes('Script failed to execute')) {
-    return;
-  }
-  // Log other rejections
   console.error('Unhandled Promise Rejection:', reason);
 });
 
@@ -43,6 +37,7 @@ const shortcutsManager = require('./shortcutsManager');
 const windowManager = require('./windowManager');
 const { bindIpcHandlers } = require('./ipcHandler');
 const trayManager = require('./trayManager');
+const WebContentsViewManager = require('./webContentsViewManager');
 
 let mainWindow;
 let tabShortcutsBound = false;
@@ -75,7 +70,6 @@ function saveSession() {
     const opacity = mainWindow.getOpacity();
     sessionData.windowBounds = bounds;
     sessionData.opacity = opacity;
-    console.log('[Session] Saved window bounds:', bounds, 'opacity:', opacity);
   }
 
   saveSessionToFile(sessionData);
@@ -125,26 +119,10 @@ function restoreSession() {
   } else if (behavior === 'restore') {
     // Restore tabs from session
     if (session.tabs && session.tabs.length > 0) {
-      const restoredTabs = [];
-      let nextTabId = 1;
-
+      // Create WebContentsView for each saved tab
       session.tabs.forEach((tabData, index) => {
-        const tabId = nextTabId++;
-        const tab = {
-          id: tabId,
-          url: tabData.url || '',
-          title: tabData.title || 'New Tab',
-          favicon: tabData.favicon || null,
-          loading: false
-        };
-        restoredTabs.push(tab);
+        createTab(tabData.url || '');
       });
-
-      // Set tabs in tabManager (use first tab as active)
-      const activeTabId = restoredTabs.length > 0 ? restoredTabs[0].id : null;
-      tabManager.setTabs(restoredTabs, activeTabId, nextTabId);
-
-      sendTabsUpdate();
       return true;
     }
   }
@@ -218,7 +196,6 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      webviewTag: true,
       webSecurity: true,
       sandbox: false,
       backgroundThrottling: false,
@@ -249,34 +226,45 @@ function createWindow() {
     console.log('[Session] Restored opacity:', savedSession.opacity);
   }
 
+  // Create WebContentsViewManager
+  const viewManager = new WebContentsViewManager(mainWindow);
+  mainWindow.viewManager = viewManager;
+
+  // Connect viewManager events to tabManager
+  viewManager.on('tab-update', ({ tabId, updates }) => {
+    tabManager.updateTab(tabId, updates, sendTabsUpdate);
+  });
+
+  // Handle new window requests (e.g., popups, target="_blank")
+  viewManager.on('new-window-requested', ({ url }) => {
+    createTab(url);
+  });
+
+  // Pass viewManager to tabManager
+  tabManager.setViewManager(viewManager);
+
   bindIpc();
 
-
-  const isDev = !!process.env.APP_URL;
-  if (process.env.APP_URL) {
-    mainWindow.loadURL(process.env.APP_URL);
-  } else {
-    mainWindow.loadFile(path.join(__dirname, '../build/index.html'));
-  }
+  // NEW ARCHITECTURE: Overlay is a WebContentsView (created in viewManager)
+  // Main window loads about:blank to avoid rendering behind WebContentsViews
+  mainWindow.loadURL('about:blank');
 
   mainWindow.webContents.on('did-finish-load', () => {
-    const platform = process.platform;
-    const jsCode = `document.body.classList.add('platform-${platform}');`;
-    mainWindow.webContents.executeJavaScript(jsCode).catch(err => {
-      // Silently ignore errors during page transitions
-    });
-
-    // Apply initial theme
+    // Apply initial theme (still needed for window background)
     applyTheme(themeManager.getCurrentTheme());
 
-    // Restore session after page loads
-    restoreSession();
+    // Restore session (tabs, theme, shortcuts, etc.)
+    if (tabManager.getTabs().length === 0) {
+      const restored = restoreSession();
+      // If no session to restore, create a blank tab
+      if (!restored) {
+        createTab('');
+      }
+    }
   });
 
   mainWindow.once('ready-to-show', () => {
-    if (tabManager.getTabs().length === 0) {
-      mainWindow.setBrowserView(null);
-    }
+    // No need to set BrowserView - using WebContentsView instead
 
     mainWindow.show();
     windowManager.setWindowVisible(true);
@@ -312,24 +300,30 @@ function createWindow() {
   setMainMenu(mainWindow);
 }
 
-// Helper function to send tabs update to renderer
+// Helper function to send tabs update to navbar
 function sendTabsUpdate() {
-  if (!mainWindow) return;
+  if (!mainWindow || !mainWindow.viewManager || !mainWindow.viewManager.navBarView) return;
   const tabsData = tabManager.getTabsData();
-  mainWindow.webContents.send('tabs.update', tabsData);
+  mainWindow.viewManager.navBarView.webContents.send('tabs.update', tabsData);
 }
 
-// Helper function to notify renderer (show nav, focus)
+// Helper function to notify navbar (show nav, focus)
 function notifyRenderer() {
-  if (mainWindow && mainWindow.webContents) {
-    // Show macOS traffic lights when showing navbar
-    if (process.platform === 'darwin') {
-      mainWindow.setWindowButtonVisibility(true);
-    }
+  if (!mainWindow || !mainWindow.viewManager || !mainWindow.viewManager.navBarView) return;
 
-    mainWindow.webContents.send('nav.show');
-    mainWindow.webContents.send('nav.focus');
+  // Only show navbar and focus URL if navbar is currently visible
+  // If navbar is hidden, don't auto-show it when creating new tabs
+  if (!mainWindow.viewManager.showNav) {
+    return;
   }
+
+  // Show macOS traffic lights when showing navbar
+  if (process.platform === 'darwin') {
+    mainWindow.setWindowButtonVisibility(true);
+  }
+
+  mainWindow.viewManager.navBarView.webContents.send('nav.show');
+  mainWindow.viewManager.navBarView.webContents.send('nav.focus');
 }
 
 function createTab(targetUrl = '') {
@@ -361,18 +355,17 @@ function bindShortcutsToWebContents(webContents) {
       }
     },
     toggleSearch: () => {
-      if (mainWindow && mainWindow.webContents) {
-        mainWindow.webContents.send('search.toggle');
+      // Send to overlay layer (overlayView)
+      if (mainWindow && mainWindow.viewManager && mainWindow.viewManager.overlayView) {
+        mainWindow.viewManager.overlayView.webContents.send('search.toggle');
       }
     },
     reloadTab: () => {
-      // Only reload if this is a webview
-      if (webContents.getType && webContents.getType() === 'webview') {
-        webContents.reloadIgnoringCache();
-      } else {
-        // For main window, send event to reload active tab
-        if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('webPage.reload');
+      // Reload active content view
+      if (mainWindow && mainWindow.viewManager) {
+        const activeView = mainWindow.viewManager.getActiveView();
+        if (activeView && activeView.webContents) {
+          activeView.webContents.reloadIgnoringCache();
         }
       }
     },
@@ -439,6 +432,66 @@ function registerDetachedModeShortcut(shortcut, skipSave = false) {
 }
 
 function bindIpc() {
+  // Add debug log listener
+  ipcMain.on('log', (event, message) => {
+    console.log(message);
+  });
+
+  // Note: settings.toggle and search.toggle handlers are registered in ipcHandler.js
+  // They forward messages to overlayView (not mainWindow)
+
+  // Detached shortcut handlers
+  ipcMain.on('detached.shortcut.get', (event) => {
+    event.returnValue = shortcutsManager.getDetachedModeShortcut();
+  });
+
+  ipcMain.on('detached.shortcut.set', (event, shortcut) => {
+    registerDetachedModeShortcut(shortcut);
+  });
+
+  ipcMain.on('detached.shortcut.unregister', (event) => {
+    shortcutsManager.unregisterAllGlobalShortcuts();
+    // Re-register toggle window shortcut
+    registerGlobalShortcut(shortcutsManager.getCurrentGlobalShortcut(), true);
+  });
+
+  // Overlay visibility control - add/remove from view hierarchy with dynamic bounds
+  ipcMain.on('overlay.mouse-events', (event, { shouldShow, mode }) => {
+    if (mainWindow && mainWindow.viewManager && mainWindow.viewManager.overlayView) {
+      if (shouldShow) {
+        // 显示overlay: 根据模式设置不同的 bounds
+        if (mode === 'settings') {
+          // Settings 需要全屏
+          mainWindow.viewManager.updateOverlayBounds();
+        } else if (mode === 'search') {
+          // Search 只需要小区域
+          mainWindow.viewManager.setOverlaySearchBounds();
+        }
+
+        // 添加到视图层级
+        mainWindow.contentView.addChildView(mainWindow.viewManager.overlayView);
+
+        // Focus overlay webContents so input can receive focus
+        // Use setTimeout to ensure view is fully added and rendered
+        setTimeout(() => {
+          if (mainWindow.viewManager.overlayView &&
+              !mainWindow.viewManager.overlayView.webContents.isDestroyed()) {
+            mainWindow.viewManager.overlayView.webContents.focus();
+          }
+        }, 50);
+      } else {
+        // 隐藏overlay: 从视图层级移除
+        mainWindow.contentView.removeChildView(mainWindow.viewManager.overlayView);
+        mainWindow.viewManager.clearOverlayMode();  // 清除模式
+      }
+    }
+  });
+
+
+  // Note: focus-main-window and blur-main-window IPC handlers removed.
+  // With independent NavBarView, focus management is handled naturally by the OS.
+  // NavBar events are sent directly to its own WebContentsView.
+
   bindIpcHandlers({
     getOpacity: () => mainWindow.getOpacity() * 100,
     setOpacity: (opacity) => mainWindow.setOpacity(opacity / 100),
@@ -548,7 +601,6 @@ app.on('ready', async function () {
   try {
     const blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch);
     blocker.enableBlockingInSession(ses);
-    console.log('[AdBlock] Successfully initialized');
   } catch (error) {
     console.error('[AdBlock] Failed to initialize:', error);
   }
@@ -570,26 +622,10 @@ app.on('ready', async function () {
   registerDetachedModeShortcut(shortcutsManager.getDetachedModeShortcut(), true);
 
   app.on('web-contents-created', (event, contents) => {
-    // Increase max listeners to avoid warnings (webviews have many internal listeners)
+    // Increase max listeners to avoid warnings
     contents.setMaxListeners(30);
 
     bindShortcutsToWebContents(contents);
-
-    if (contents.getType && contents.getType() === 'webview') {
-      try {
-        // Set webview background based on current theme
-        const effectiveTheme = themeManager.getEffectiveTheme(themeManager.getCurrentTheme());
-        const bgColor = themeManager.getBackgroundColor(effectiveTheme);
-        contents.setBackgroundColor(bgColor);
-      } catch (e) {}
-
-      contents.setWindowOpenHandler(({ url }) => {
-        if (url) {
-          createTab(url);
-        }
-        return { action: 'deny' };
-      });
-    }
   });
 });
 

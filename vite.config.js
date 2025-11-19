@@ -17,6 +17,19 @@ export default defineConfig({
     outDir: 'build',
     assetsDir: 'static',
     emptyOutDir: true,
+    rollupOptions: {
+      input: {
+        main: path.resolve(__dirname, 'public/index.html'),
+        navbar: path.resolve(__dirname, 'public/navbar.html'),
+        overlay: path.resolve(__dirname, 'public/overlay.html')
+      },
+      output: {
+        // Ensure navbar.html and index.html are at the root of build/
+        entryFileNames: `static/[name]-[hash].js`,
+        chunkFileNames: `static/[name]-[hash].js`,
+        assetFileNames: `static/[name]-[hash].[ext]`
+      }
+    }
   },
   resolve: {
     alias: {

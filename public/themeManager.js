@@ -57,33 +57,14 @@ function applyTheme(theme, mainWindow) {
 
   const effectiveTheme = getEffectiveTheme(theme);
 
-  console.log(`[Theme] Applying theme: ${theme} (effective: ${effectiveTheme})`);
-
-  // Wait for webContents to be ready
-  if (mainWindow.webContents.isLoading()) {
-    mainWindow.webContents.once('did-finish-load', () => {
-      applyTheme(theme, mainWindow);
-    });
-    return;
+  // Set nativeTheme.themeSource to affect prefers-color-scheme in all webContents
+  // This makes websites automatically switch to dark mode
+  // Only update if different to avoid triggering nativeTheme.on('updated') loop
+  if (nativeTheme.themeSource !== theme) {
+    nativeTheme.themeSource = theme;
   }
 
-  // Apply theme to renderer - check if ready first
-  if (mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
-    mainWindow.webContents.executeJavaScript(`
-      console.log('[Theme] Setting data-theme to: ${effectiveTheme}');
-      document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
-      console.log('[Theme] Current data-theme:', document.documentElement.getAttribute('data-theme'));
-    `).then(() => {
-      console.log(`[Theme] Successfully set data-theme to: ${effectiveTheme}`);
-    }).catch(err => {
-      // Silently ignore errors during page transitions
-      if (err.message && !err.message.includes('context')) {
-        console.error('[Theme] Failed to apply theme:', err);
-      }
-    });
-  }
-
-  // Update background color for window and all existing webviews
+  // Update background color
   const bgColor = getBackgroundColor(effectiveTheme);
 
   // Update main window background
@@ -91,18 +72,40 @@ function applyTheme(theme, mainWindow) {
     mainWindow.setBackgroundColor(bgColor);
   } catch (e) {}
 
-  // Update all webviews
-  const { webContents } = require('electron');
-  const allWebContents = webContents.getAllWebContents();
-  allWebContents.forEach(wc => {
-    try {
-      if (wc.getType() === 'webview') {
-        wc.setBackgroundColor(bgColor);
-      }
-    } catch (e) {
-      // Webview might be destroyed
+  // Apply theme to NavBarView
+  if (mainWindow.viewManager && mainWindow.viewManager.navBarView) {
+    const navBarWC = mainWindow.viewManager.navBarView.webContents;
+    if (navBarWC && !navBarWC.isDestroyed() && !navBarWC.isLoading()) {
+      navBarWC.executeJavaScript(`
+        document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
+      `).catch(err => {
+        // Silently ignore errors
+      });
     }
-  });
+  }
+
+  // Apply theme to OverlayView
+  if (mainWindow.viewManager && mainWindow.viewManager.overlayView) {
+    const overlayWC = mainWindow.viewManager.overlayView.webContents;
+    if (overlayWC && !overlayWC.isDestroyed() && !overlayWC.isLoading()) {
+      overlayWC.executeJavaScript(`
+        document.documentElement.setAttribute('data-theme', '${effectiveTheme}');
+      `).catch(err => {
+        // Silently ignore errors
+      });
+    }
+  }
+
+  // Apply theme to all content views
+  if (mainWindow.viewManager && mainWindow.viewManager.contentViews) {
+    mainWindow.viewManager.contentViews.forEach((view, tabId) => {
+      try {
+        view.setBackgroundColor(bgColor);
+      } catch (e) {
+        // View might be destroyed
+      }
+    });
+  }
 }
 
 module.exports = {

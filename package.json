@@ -3,7 +3,7 @@
   "description": "Archy – Cross-platform floating window browser, inspired by Archytas's pigeon, the world's first flying automaton.",
   "productName": "Archy",
   "author": "ShenSheiBot",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "private": true,
   "main": "public/electron.js",
   "homepage": "./",
@@ -27,7 +27,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node scripts/post-build.js",
     "preview": "vite preview",
     "electron": "electron .",
     "electron:dev": "concurrently \"yarn dev\" \"wait-on http://localhost:5173 && cross-env APP_URL=http://localhost:5173 electron .\"",
@@ -47,10 +47,14 @@
     "extends": null,
     "appId": "com.archy.app",
     "asar": true,
+    "asarUnpack": [
+      "**/*.node"
+    ],
     "copyright": "Copyright © 2018 Kamran Ahmed",
     "files": [
       "public/**/*",
       "build/**/*",
+      "!build/public",
       "!public/archy.png",
       "package.json"
     ],

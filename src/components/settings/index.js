@@ -10,8 +10,11 @@ class Settings extends React.Component {
     opacity: ipcRenderer.sendSync('opacity.get'),
     theme: ipcRenderer.sendSync('theme.get') || 'system',  // 'system', 'light', 'dark'
     globalShortcut: ipcRenderer.sendSync('shortcut.get') || 'Control+Alt+Shift+0',
+    detachedShortcut: ipcRenderer.sendSync('detached.shortcut.get') || 'Command+Shift+D',
     isRecording: false,
+    isRecordingDetached: false,
     recordedKeys: [],
+    recordedDetachedKeys: [],
     // Startup options
     startupBehavior: ipcRenderer.sendSync('startup.behavior.get') || 'restore',  // 'blank', 'restore', 'url'
     startupUrl: ipcRenderer.sendSync('startup.url.get') || 'https://www.google.com'
@@ -52,16 +55,8 @@ class Settings extends React.Component {
     const currentIndex = themeOrder.indexOf(this.state.theme);
     const nextTheme = themeOrder[(currentIndex + 1) % themeOrder.length];
 
-    console.log(`[Settings] Theme toggle: ${this.state.theme} → ${nextTheme}`);
     this.setState({ theme: nextTheme });
     ipcRenderer.send('theme.set', nextTheme);
-    console.log(`[Settings] Sent theme.set with: ${nextTheme}`);
-  };
-
-  onHideNavbar = () => {
-    if (this.props.onHideNavbar) {
-      this.props.onHideNavbar();
-    }
   };
 
   onStartupBehaviorChange = (e) => {
@@ -88,12 +83,13 @@ class Settings extends React.Component {
   };
 
   handleKeyDown = (e) => {
-    if (!this.state.isRecording) return;
+    const isRecording = this.state.isRecording || this.state.isRecordingDetached;
+    if (!isRecording) return;
 
     e.preventDefault();
     e.stopPropagation();
 
-    const keys = new Set(this.state.recordedKeys);
+    const keys = new Set(this.state.isRecording ? this.state.recordedKeys : this.state.recordedDetachedKeys);
 
     // Add modifier keys
     if (e.ctrlKey || e.metaKey) keys.add(e.metaKey ? 'Command' : 'Control');
@@ -110,11 +106,16 @@ class Settings extends React.Component {
       keys.add(keyName);
     }
 
-    this.setState({ recordedKeys: Array.from(keys) });
+    if (this.state.isRecording) {
+      this.setState({ recordedKeys: Array.from(keys) });
+    } else {
+      this.setState({ recordedDetachedKeys: Array.from(keys) });
+    }
   };
 
   handleKeyUp = (e) => {
-    if (!this.state.isRecording) return;
+    const isRecording = this.state.isRecording || this.state.isRecordingDetached;
+    if (!isRecording) return;
 
     e.preventDefault();
     e.stopPropagation();
@@ -177,11 +178,71 @@ class Settings extends React.Component {
     ipcRenderer.send('shortcut.set', this.state.globalShortcut);
   };
 
+  startRecordingDetached = () => {
+    this.setState({
+      isRecordingDetached: true,
+      recordedDetachedKeys: []
+    });
+    // Temporarily unregister global shortcut to allow recording
+    ipcRenderer.send('detached.shortcut.unregister');
+  };
+
+  stopRecordingDetached = () => {
+    const { recordedDetachedKeys } = this.state;
+
+    if (recordedDetachedKeys.length >= 2) {
+      // Build shortcut string in Electron format
+      // Order: Control/Command, Alt, Shift, then key
+      const modifiers = [];
+      const keys = [];
+
+      if (recordedDetachedKeys.includes('Control') || recordedDetachedKeys.includes('Command')) {
+        modifiers.push(recordedDetachedKeys.includes('Command') ? 'Command' : 'Control');
+      }
+      if (recordedDetachedKeys.includes('Alt')) modifiers.push('Alt');
+      if (recordedDetachedKeys.includes('Shift')) modifiers.push('Shift');
+
+      recordedDetachedKeys.forEach(key => {
+        if (!['Control', 'Command', 'Alt', 'Shift'].includes(key)) {
+          keys.push(key);
+        }
+      });
+
+      const shortcut = [...modifiers, ...keys].join('+');
+
+      this.setState({
+        detachedShortcut: shortcut,
+        isRecordingDetached: false,
+        recordedDetachedKeys: []
+      });
+
+      ipcRenderer.send('detached.shortcut.set', shortcut);
+    } else {
+      // Need at least modifier + key
+      this.setState({
+        isRecordingDetached: false,
+        recordedDetachedKeys: []
+      });
+    }
+  };
+
+  cancelRecordingDetached = () => {
+    this.setState({
+      isRecordingDetached: false,
+      recordedDetachedKeys: []
+    });
+    // Re-register the original shortcut
+    ipcRenderer.send('detached.shortcut.set', this.state.detachedShortcut);
+  };
+
   render() {
-    const { isRecording, recordedKeys, globalShortcut, startupBehavior, startupUrl } = this.state;
+    const { isRecording, recordedKeys, globalShortcut, isRecordingDetached, recordedDetachedKeys, detachedShortcut, startupBehavior, startupUrl } = this.state;
     const displayShortcut = isRecording
       ? (recordedKeys.length > 0 ? recordedKeys.join('+') : 'Press keys...')
       : globalShortcut;
+    const displayDetachedShortcut = isRecordingDetached
+      ? (recordedDetachedKeys.length > 0 ? recordedDetachedKeys.join('+') : 'Press keys...')
+      : detachedShortcut;
 
     return (
       <div className='settings-wrap'>
@@ -217,6 +278,29 @@ class Settings extends React.Component {
             )}
           </div>
         </div>
+        <div className="setting-control shortcut-picker">
+          <i className="fa fa-hand-paper-o shortcut-icon" title="Toggle Detached Mode Shortcut"/>
+          <div className="shortcut-input-wrapper">
+            <input
+              type="text"
+              className={`shortcut-input ${isRecordingDetached ? 'recording' : ''}`}
+              value={displayDetachedShortcut}
+              readOnly
+              placeholder="Click to set shortcut"
+              onClick={this.startRecordingDetached}
+            />
+            {isRecordingDetached && (
+              <div className="shortcut-actions">
+                <button className="btn-shortcut-action btn-save" onClick={this.stopRecordingDetached} title="Save">
+                  <i className="fa fa-check"/>
+                </button>
+                <button className="btn-shortcut-action btn-cancel" onClick={this.cancelRecordingDetached} title="Cancel">
+                  <i className="fa fa-times"/>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
         <div className="setting-control startup-options">
           <i className="fa fa-power-off startup-icon" title="Startup Options"/>
           <div className="startup-wrapper">
@@ -240,11 +324,6 @@ class Settings extends React.Component {
               />
             )}
           </div>
-        </div>
-        <div className="setting-control hide-navbar">
-          <button className="btn-hide-navbar" onClick={this.onHideNavbar} title="Hide Navbar">
-            <i className="fa fa-eye-slash"/>
-          </button>
         </div>
       </div>
     );

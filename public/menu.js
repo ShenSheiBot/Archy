@@ -160,7 +160,35 @@ function setMainMenu(mainWindow) {
           label: 'Toggle Navbar',
           accelerator: 'CmdOrCtrl+Shift+L',
           click() {
-            mainWindow.webContents.send('nav.toggle');
+            // Toggle navbar visibility via viewManager
+            if (mainWindow && mainWindow.viewManager && mainWindow.viewManager.navBarView) {
+              const currentlyVisible = mainWindow.viewManager.showNav;
+              const newVisible = !currentlyVisible;
+
+              if (newVisible) {
+                // Show navbar
+                mainWindow.viewManager.setNavBarVisible(true);
+
+                // Show macOS traffic lights
+                if (process.platform === 'darwin') {
+                  mainWindow.setWindowButtonVisibility(true);
+                }
+
+                // Notify navbar to update its state
+                mainWindow.viewManager.navBarView.webContents.send('nav.show');
+              } else {
+                // Hide navbar
+                mainWindow.viewManager.setNavBarVisible(false);
+
+                // Hide macOS traffic lights
+                if (process.platform === 'darwin') {
+                  mainWindow.setWindowButtonVisibility(false);
+                }
+
+                // Notify navbar to update its state
+                mainWindow.viewManager.navBarView.webContents.send('nav.hide');
+              }
+            }
           }
         },
         {
@@ -184,8 +212,22 @@ function setMainMenu(mainWindow) {
           label: 'Focus URL',
           accelerator: 'CmdOrCtrl+L',
           click() {
-            mainWindow.webContents.send('nav.show');
-            mainWindow.webContents.send('nav.focus');
+            // Show navbar and focus URL input via viewManager
+            if (mainWindow && mainWindow.viewManager && mainWindow.viewManager.navBarView) {
+              // Show navbar if hidden
+              if (!mainWindow.viewManager.showNav) {
+                mainWindow.viewManager.setNavBarVisible(true);
+
+                // Show macOS traffic lights
+                if (process.platform === 'darwin') {
+                  mainWindow.setWindowButtonVisibility(true);
+                }
+              }
+
+              // Notify navbar to show and focus
+              mainWindow.viewManager.navBarView.webContents.send('nav.show');
+              mainWindow.viewManager.navBarView.webContents.send('nav.focus');
+            }
           }
         },
         {

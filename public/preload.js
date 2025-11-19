@@ -1,5 +1,5 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const os = require('os');
+const platform = process.platform;
 
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
@@ -21,12 +21,15 @@ contextBridge.exposeInMainWorld('electron', {
         'nav.show',
         'nav.toggle',
         'settings.toggle',
+        'overlay.mouse-events',
         'startup.behavior.set',
         'startup.url.set',
         'fullscreen.enter',
         'fullscreen.leave',
-        'traffic-lights.show'
-        // reload, back, forward, search are handled directly by webview in renderer
+        'traffic-lights.show',
+        'search.find',
+        'search.clear'
+        // reload, back, forward are handled by WebContentsView in main process
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.send(channel, data);
@@ -43,7 +46,9 @@ contextBridge.exposeInMainWorld('electron', {
         'webPage.reload',
         'load-url',
         'tabs.update',
+        'settings.toggle',
         'search.toggle',
+        'search.result',
         'zoom.in',
         'zoom.out',
         'zoom.reset',
@@ -66,6 +71,7 @@ contextBridge.exposeInMainWorld('electron', {
         'nav.focus',
         'tabs.update',
         'webPage.reload',
+        'settings.toggle',
         'search.toggle',
         'zoom.in',
         'zoom.out',
@@ -92,5 +98,5 @@ contextBridge.exposeInMainWorld('electron', {
       }
     }
   },
-  platform: os.platform()
+  platform: platform
 });

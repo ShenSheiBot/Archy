@@ -18,7 +18,6 @@ const sessionFilePath = path.join(app.getPath('userData'), 'session.json');
 function saveSession(sessionData) {
   try {
     fs.writeFileSync(sessionFilePath, JSON.stringify(sessionData, null, 2));
-    console.log('[Session] Saved session:', sessionData.tabs?.length || 0, 'tabs');
   } catch (err) {
     console.error('[Session] Failed to save:', err);
   }
@@ -31,13 +30,11 @@ function saveSession(sessionData) {
 function loadSession() {
   try {
     if (!fs.existsSync(sessionFilePath)) {
-      console.log('[Session] No saved session found');
       return null;
     }
 
     const data = fs.readFileSync(sessionFilePath, 'utf8');
     const session = JSON.parse(data);
-    console.log('[Session] Loaded session:', session.tabs?.length || 0, 'tabs');
     return session;
   } catch (err) {
     console.error('[Session] Failed to load:', err);

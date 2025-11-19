@@ -46,5 +46,8 @@ Thumbs.db
 *.swo
 *~
 
+# Project Management
+CLEANUP.md
+
 # Claude Code
 .claude/settings.local.json
