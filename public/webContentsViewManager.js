@@ -92,12 +92,13 @@ class WebContentsViewManager extends EventEmitter {
     this.setupViewListeners(tabId, view);
 
     // 设置窗口打开处理器（处理 popups）
+    // 在新标签页打开链接，而不是新窗口
     view.webContents.setWindowOpenHandler(({ url }) => {
       console.log(`Tab ${tabId} wants to open: ${url}`);
-      // 可以在这里决定是在新标签页打开还是新窗口
-      // 返回 { action: 'deny' } 阻止
-      // 返回 { action: 'allow' } 允许在新窗口打开
-      return { action: 'allow' };
+      // 发射事件让主进程创建新标签页
+      this.emit('new-window-requested', { url });
+      // 阻止默认的新窗口行为
+      return { action: 'deny' };
     });
 
     // 加载 URL
@@ -461,31 +462,27 @@ class WebContentsViewManager extends EventEmitter {
       console.log(`Tab ${tabId}: did-finish-load`);
       this.emit('tab-loaded', { tabId });
 
-      // 通知 tabManager 更新 loading 状态
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { loading: false });
+      // 发射事件更新 loading 状态
+      this.emit('tab-update', { tabId, updates: { loading: false } });
     };
 
     // 开始加载
     listeners['did-start-loading'] = () => {
       console.log(`Tab ${tabId}: did-start-loading`);
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { loading: true });
+      this.emit('tab-update', { tabId, updates: { loading: true } });
     };
 
     // 停止加载
     listeners['did-stop-loading'] = () => {
       console.log(`Tab ${tabId}: did-stop-loading`);
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { loading: false });
+      this.emit('tab-update', { tabId, updates: { loading: false } });
     };
 
     // 导航完成
     listeners['did-navigate'] = (event, url) => {
       console.log(`Tab ${tabId}: did-navigate to ${url}`);
 
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { url });
+      this.emit('tab-update', { tabId, updates: { url } });
 
       // 恢复该域名的缩放级别
       this.restoreZoomForDomain(view, url);
@@ -496,17 +493,14 @@ class WebContentsViewManager extends EventEmitter {
     // 页面内导航（单页应用）
     listeners['did-navigate-in-page'] = (event, url) => {
       console.log(`Tab ${tabId}: did-navigate-in-page to ${url}`);
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { url });
+      this.emit('tab-update', { tabId, updates: { url } });
     };
 
     // 页面标题更新
     listeners['page-title-updated'] = (event, title) => {
       console.log(`Tab ${tabId}: title updated to "${title}"`);
 
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { title });
-
+      this.emit('tab-update', { tabId, updates: { title } });
       this.emit('tab-title-updated', { tabId, title });
     };
 
@@ -515,9 +509,7 @@ class WebContentsViewManager extends EventEmitter {
       const favicon = favicons && favicons.length > 0 ? favicons[0] : null;
       console.log(`Tab ${tabId}: favicon updated`);
 
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { favicon });
-
+      this.emit('tab-update', { tabId, updates: { favicon } });
       this.emit('tab-favicon-updated', { tabId, favicon });
     };
 
@@ -528,9 +520,7 @@ class WebContentsViewManager extends EventEmitter {
 
       console.error(`Tab ${tabId}: failed to load ${validatedURL}`, errorCode, errorDescription);
 
-      const tabManager = require('./tabManager');
-      tabManager.updateTab(tabId, { loading: false });
-
+      this.emit('tab-update', { tabId, updates: { loading: false } });
       this.emit('tab-load-failed', { tabId, errorCode, errorDescription, url: validatedURL });
     };
 

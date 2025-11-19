@@ -1,4 +1,4 @@
-const { app, BrowserWindow, BrowserView, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const pdfWindow = require('electron-pdf-window');
 const path = require('path');
@@ -43,6 +43,7 @@ const shortcutsManager = require('./shortcutsManager');
 const windowManager = require('./windowManager');
 const { bindIpcHandlers } = require('./ipcHandler');
 const trayManager = require('./trayManager');
+const WebContentsViewManager = require('./webContentsViewManager');
 
 let mainWindow;
 let tabShortcutsBound = false;
@@ -249,6 +250,23 @@ function createWindow() {
     console.log('[Session] Restored opacity:', savedSession.opacity);
   }
 
+  // Create WebContentsViewManager
+  const viewManager = new WebContentsViewManager(mainWindow);
+  mainWindow.viewManager = viewManager;
+
+  // Connect viewManager events to tabManager
+  viewManager.on('tab-update', ({ tabId, updates }) => {
+    tabManager.updateTab(tabId, updates, sendTabsUpdate);
+  });
+
+  // Handle new window requests (e.g., popups, target="_blank")
+  viewManager.on('new-window-requested', ({ url }) => {
+    createTab(url);
+  });
+
+  // Pass viewManager to tabManager
+  tabManager.setViewManager(viewManager);
+
   bindIpc();
 
 
@@ -274,9 +292,7 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
-    if (tabManager.getTabs().length === 0) {
-      mainWindow.setBrowserView(null);
-    }
+    // No need to set BrowserView - using WebContentsView instead
 
     mainWindow.show();
     windowManager.setWindowVisible(true);

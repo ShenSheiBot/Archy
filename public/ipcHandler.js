@@ -124,6 +124,11 @@ function bindIpcHandlers(handlers) {
     // Get the window that sent this message
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
 
+    // Update viewManager bounds
+    if (win && win.viewManager) {
+      win.viewManager.setNavBarVisible(false);
+    }
+
     // Hide macOS traffic lights on macOS
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(false);
@@ -135,6 +140,11 @@ function bindIpcHandlers(handlers) {
   ipcMain.on('nav.show', (event) => {
     // Get the window that sent this message
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+
+    // Update viewManager bounds
+    if (win && win.viewManager) {
+      win.viewManager.setNavBarVisible(true);
+    }
 
     // Show macOS traffic lights on macOS
     if (process.platform === 'darwin' && win) {
@@ -190,6 +200,76 @@ function bindIpcHandlers(handlers) {
     const win = require('electron').BrowserWindow.fromWebContents(event.sender);
     if (process.platform === 'darwin' && win) {
       win.setWindowButtonVisibility(true);
+    }
+  });
+
+  // Zoom handlers
+  ipcMain.removeAllListeners('zoom.in');
+  ipcMain.removeAllListeners('zoom.out');
+  ipcMain.removeAllListeners('zoom.reset');
+
+  ipcMain.on('zoom.in', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomIn();
+    }
+  });
+
+  ipcMain.on('zoom.out', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomOut();
+    }
+  });
+
+  ipcMain.on('zoom.reset', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      win.viewManager.zoomReset();
+    }
+  });
+
+  // Navigation handlers (back, forward, reload)
+  ipcMain.removeAllListeners('webPage.reload');
+
+  ipcMain.on('tab.reload', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents) {
+        view.webContents.reloadIgnoringCache();
+      }
+    }
+  });
+
+  // Handle reload for active tab (legacy compatibility)
+  ipcMain.on('webPage.reload', (event) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const activeView = win.viewManager.getActiveView();
+      if (activeView && activeView.webContents) {
+        activeView.webContents.reloadIgnoringCache();
+      }
+    }
+  });
+
+  ipcMain.on('tab.back', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents && view.webContents.canGoBack()) {
+        view.webContents.goBack();
+      }
+    }
+  });
+
+  ipcMain.on('tab.forward', (event, tabId) => {
+    const win = require('electron').BrowserWindow.fromWebContents(event.sender);
+    if (win && win.viewManager) {
+      const view = win.viewManager.getView(tabId);
+      if (view && view.webContents && view.webContents.canGoForward()) {
+        view.webContents.goForward();
+      }
     }
   });
 }
