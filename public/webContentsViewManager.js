@@ -41,6 +41,9 @@ class WebContentsViewManager extends EventEmitter {
     this.zoomOffsetsByDomain = new Map(); // hostname -> offset multiplier (default 1.0)
     this.defaultZoomFactor = globalZoomPercentage / 100; // 全局默认缩放因子 (0.5-2.0)
 
+    // Detached mode CSS keys (for removing CSS when exiting detached mode)
+    this.detachedModeCssKeys = new Map(); // tabId -> CSS key
+
     // 创建独立的 NavBar View
     this.createNavBarView();
 
@@ -941,6 +944,45 @@ class WebContentsViewManager extends EventEmitter {
    */
   getViewCount() {
     return this.contentViews.size;
+  }
+
+  /**
+   * 为所有标签页设置 detached mode（禁用/启用 pointer events）
+   *
+   * @param {boolean} enabled - 是否启用 detached mode
+   */
+  setDetachedModeForAllTabs(enabled) {
+    if (enabled) {
+      // 注入 CSS 禁用 pointer events
+      const css = `
+        *, *::before, *::after {
+          pointer-events: none !important;
+          cursor: default !important;
+        }
+        html, body {
+          pointer-events: none !important;
+        }
+      `;
+
+      this.contentViews.forEach((view, tabId) => {
+        view.webContents.insertCSS(css).then(key => {
+          this.detachedModeCssKeys.set(tabId, key);
+        }).catch(err => {
+          console.error(`[ViewManager] Failed to inject detached CSS for tab ${tabId}:`, err);
+        });
+      });
+    } else {
+      // 移除注入的 CSS
+      this.contentViews.forEach((view, tabId) => {
+        const cssKey = this.detachedModeCssKeys.get(tabId);
+        if (cssKey) {
+          view.webContents.removeInsertedCSS(cssKey).catch(err => {
+            console.error(`[ViewManager] Failed to remove detached CSS for tab ${tabId}:`, err);
+          });
+          this.detachedModeCssKeys.delete(tabId);
+        }
+      });
+    }
   }
 
   // Note: setNavbarFocus method removed - no longer needed with independent NavBarView.

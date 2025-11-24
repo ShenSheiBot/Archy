@@ -19,7 +19,9 @@ class Settings extends React.Component {
     startupBehavior: ipcRenderer.sendSync('startup.behavior.get') || 'restore',  // 'blank', 'restore', 'url'
     startupUrl: ipcRenderer.sendSync('startup.url.get') || 'https://www.google.com',
     // Global zoom
-    globalZoom: ipcRenderer.sendSync('globalZoom.get') || 100
+    globalZoom: ipcRenderer.sendSync('globalZoom.get') || 100,
+    // Detached mode opacity
+    detachedOpacity: ipcRenderer.sendSync('detachedOpacity.get') || 50
   };
 
   componentDidMount() {
@@ -45,10 +47,21 @@ class Settings extends React.Component {
     ipcRenderer.send('globalZoom.set', zoom);
   }, 400);
 
+  // Debounce detached opacity setter
+  setDetachedOpacity = debounce((opacity) => {
+    ipcRenderer.send('detachedOpacity.set', opacity);
+  }, 400);
+
   onGlobalZoomChange = (e) => {
     const zoom = parseInt(e.target.value);
     this.setState({ globalZoom: zoom });
     this.setGlobalZoom(zoom);
+  };
+
+  onDetachedOpacityChange = (e) => {
+    const opacity = parseInt(e.target.value);
+    this.setState({ detachedOpacity: opacity });
+    this.setDetachedOpacity(opacity);
   };
 
   onOpacitySync = (event, opacity) => {
@@ -249,7 +262,7 @@ class Settings extends React.Component {
   };
 
   render() {
-    const { isRecording, recordedKeys, globalShortcut, isRecordingDetached, recordedDetachedKeys, detachedShortcut, startupBehavior, startupUrl, globalZoom } = this.state;
+    const { isRecording, recordedKeys, globalShortcut, isRecordingDetached, recordedDetachedKeys, detachedShortcut, startupBehavior, startupUrl, globalZoom, detachedOpacity } = this.state;
     const displayShortcut = isRecording
       ? (recordedKeys.length > 0 ? recordedKeys.join('+') : 'Press keys...')
       : globalShortcut;
@@ -318,6 +331,11 @@ class Settings extends React.Component {
               </div>
             )}
           </div>
+        </div>
+        <div className="setting-control detached-opacity-picker">
+          <i className="fa fa-eye-slash opacity-icon" title="Detached Mode Opacity"/>
+          <input type="range" onChange={ this.onDetachedOpacityChange } value={ detachedOpacity } min="20" max="100" className="slider" id="detached-opacity-picker"/>
+          <span className="zoom-value">{detachedOpacity}%</span>
         </div>
         <div className="setting-control startup-options">
           <i className="fa fa-power-off startup-icon" title="Startup Options"/>

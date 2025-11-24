@@ -25,6 +25,7 @@ contextBridge.exposeInMainWorld('electron', {
         'startup.behavior.set',
         'startup.url.set',
         'globalZoom.set',
+        'detachedOpacity.set',
         'fullscreen.enter',
         'fullscreen.leave',
         'traffic-lights.show',
@@ -93,7 +94,8 @@ contextBridge.exposeInMainWorld('electron', {
         'tabs.get',
         'startup.behavior.get',
         'startup.url.get',
-        'globalZoom.get'
+        'globalZoom.get',
+        'detachedOpacity.get'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.sendSync(channel);

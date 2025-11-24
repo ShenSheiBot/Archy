@@ -10,6 +10,7 @@ let monitorStarted = false;
 const monitorTimers = new Map(); // Per-window monitoring timers
 let isDetachedMode = false;
 let navbarVisibleBeforeDetached = true; // Save navbar state before entering detached mode
+let opacityBeforeDetached = 1.0; // Save opacity before entering detached mode (0-1)
 
 /**
  * Get window visibility state
@@ -46,14 +47,24 @@ function setDetachedMode(detached) {
 /**
  * Toggle detached mode
  * @param {BrowserWindow} mainWindow - Main window instance
+ * @param {Object} options - Options object with getDetachedOpacity function
  */
-function toggleDetachedMode(mainWindow) {
+function toggleDetachedMode(mainWindow, options = {}) {
   if (!mainWindow || mainWindow.isDestroyed()) return;
 
   isDetachedMode = !isDetachedMode;
 
   if (isDetachedMode) {
     // Enter detached mode
+    // Save current opacity before switching
+    opacityBeforeDetached = mainWindow.getOpacity();
+
+    // Apply detached opacity if provided
+    if (options.getDetachedOpacity) {
+      const detachedOpacity = options.getDetachedOpacity();
+      mainWindow.setOpacity(detachedOpacity / 100);
+    }
+
     // Save current navbar visibility state
     if (mainWindow.viewManager) {
       navbarVisibleBeforeDetached = mainWindow.viewManager.showNav;
@@ -70,6 +81,12 @@ function toggleDetachedMode(mainWindow) {
     }
 
     mainWindow.setIgnoreMouseEvents(true, { forward: true });
+
+    // Disable pointer events on all tabs to prevent hover effects
+    if (mainWindow.viewManager) {
+      mainWindow.viewManager.setDetachedModeForAllTabs(true);
+    }
+
     mainWindow.webContents.send('detached.enter');
 
     // Hide macOS traffic lights
@@ -78,6 +95,14 @@ function toggleDetachedMode(mainWindow) {
     }
   } else {
     // Exit detached mode
+    // Restore original opacity
+    mainWindow.setOpacity(opacityBeforeDetached);
+
+    // Re-enable pointer events on all tabs
+    if (mainWindow.viewManager) {
+      mainWindow.viewManager.setDetachedModeForAllTabs(false);
+    }
+
     mainWindow.setIgnoreMouseEvents(false);
     mainWindow.webContents.send('detached.exit');
 
@@ -200,9 +225,10 @@ function toggleWindow(mainWindow) {
       // Send detached.restore (not detached.enter) to apply state without re-saving
       mainWindow.webContents.send('detached.restore');
 
-      // Ensure navbar is hidden in detached mode
+      // Ensure navbar is hidden in detached mode and disable pointer events
       if (mainWindow.viewManager) {
         mainWindow.viewManager.setNavBarVisible(false);
+        mainWindow.viewManager.setDetachedModeForAllTabs(true);
         if (mainWindow.viewManager.navBarView) {
           mainWindow.viewManager.navBarView.webContents.send('nav.hide');
         }
