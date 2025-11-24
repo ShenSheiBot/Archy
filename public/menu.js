@@ -243,23 +243,29 @@ function setMainMenu(mainWindow) {
         { type: 'separator' },
         {
           label: 'Reset Zoom',
-          accelerator: 'CmdOrCtrl+0',
+          accelerator: 'CmdOrCtrl+Shift+0',
           click() {
-            mainWindow.webContents.send('zoom.reset');
+            if (mainWindow && mainWindow.viewManager) {
+              mainWindow.viewManager.zoomReset();
+            }
           }
         },
         {
           label: 'Zoom In',
           accelerator: 'CmdOrCtrl+=',
           click() {
-            mainWindow.webContents.send('zoom.in');
+            if (mainWindow && mainWindow.viewManager) {
+              mainWindow.viewManager.zoomIn();
+            }
           }
         },
         {
           label: 'Zoom Out',
           accelerator: 'CmdOrCtrl+-',
           click() {
-            mainWindow.webContents.send('zoom.out');
+            if (mainWindow && mainWindow.viewManager) {
+              mainWindow.viewManager.zoomOut();
+            }
           }
         },
         { type: 'separator' },

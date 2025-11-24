@@ -48,6 +48,9 @@ let startupConfig = {
   url: 'https://www.google.com'
 };
 
+// Global zoom level (percentage, 50-200)
+let globalZoom = 100;
+
 // Save session to disk
 function saveSession() {
   const tabs = tabManager.getTabs();
@@ -61,7 +64,8 @@ function saveSession() {
     theme: themeManager.getCurrentTheme(),
     globalShortcut: shortcutsManager.getCurrentGlobalShortcut(),
     detachedModeShortcut: shortcutsManager.getDetachedModeShortcut(),
-    startup: startupConfig
+    startup: startupConfig,
+    globalZoom: globalZoom
   };
 
   // Save window bounds and opacity if window exists
@@ -103,6 +107,11 @@ function restoreSession() {
   // Restore startup configuration
   if (session.startup) {
     startupConfig = { ...startupConfig, ...session.startup };
+  }
+
+  // Restore global zoom
+  if (session.globalZoom !== undefined) {
+    globalZoom = session.globalZoom;
   }
 
   // Apply startup behavior
@@ -181,6 +190,11 @@ function createWindow() {
     startupConfig = { ...startupConfig, ...savedSession.startup };
   }
 
+  // Restore global zoom early so viewManager uses it
+  if (savedSession?.globalZoom !== undefined) {
+    globalZoom = savedSession.globalZoom;
+  }
+
   const windowOptions = {
     width: savedBounds?.width || 700,
     height: savedBounds?.height || 600,
@@ -226,8 +240,8 @@ function createWindow() {
     console.log('[Session] Restored opacity:', savedSession.opacity);
   }
 
-  // Create WebContentsViewManager
-  const viewManager = new WebContentsViewManager(mainWindow);
+  // Create WebContentsViewManager with global zoom
+  const viewManager = new WebContentsViewManager(mainWindow, globalZoom);
   mainWindow.viewManager = viewManager;
 
   // Connect viewManager events to tabManager
@@ -519,6 +533,14 @@ function bindIpc() {
     getStartupUrl: () => startupConfig.url,
     setStartupUrl: (url) => {
       startupConfig.url = url;
+      saveSession();
+    },
+    getGlobalZoom: () => globalZoom,
+    setGlobalZoom: (zoom) => {
+      globalZoom = zoom;
+      if (mainWindow && mainWindow.viewManager) {
+        mainWindow.viewManager.setDefaultZoomFactor(zoom / 100);
+      }
       saveSession();
     }
   });

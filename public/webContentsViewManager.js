@@ -21,7 +21,7 @@ const NAVBAR_FULL_HEIGHT = 38;   // 完整导航栏高度
 const NAVBAR_HIDDEN_HEIGHT = 15;  // 隐藏时的拖动条高度
 
 class WebContentsViewManager extends EventEmitter {
-  constructor(browserWindow) {
+  constructor(browserWindow, globalZoomPercentage = 100) {
     super();
 
     this.browserWindow = browserWindow;
@@ -35,8 +35,11 @@ class WebContentsViewManager extends EventEmitter {
     this.isFullscreen = false;        // 是否处于全屏模式
     this.overlayMode = null;          // 当前 overlay 模式: null, 'settings', 'search'
 
-    // 缩放管理（迁移自 web-page/index.js）
-    this.zoomLevelsByDomain = new Map(); // hostname -> zoom factor
+    // 缩放管理
+    // zoomOffsetsByDomain: 每个域名的缩放偏移倍数（默认 1.0）
+    // 最终缩放 = defaultZoomFactor * offset
+    this.zoomOffsetsByDomain = new Map(); // hostname -> offset multiplier (default 1.0)
+    this.defaultZoomFactor = globalZoomPercentage / 100; // 全局默认缩放因子 (0.5-2.0)
 
     // 创建独立的 NavBar View
     this.createNavBarView();
@@ -350,6 +353,29 @@ class WebContentsViewManager extends EventEmitter {
       return { action: 'deny' };
     });
 
+    // 阻止链接拖放到外部浏览器
+    view.webContents.on('dom-ready', () => {
+      view.webContents.executeJavaScript(`
+        document.addEventListener('dragstart', (e) => {
+          if (e.target.tagName === 'A' || e.target.closest('a')) {
+            e.preventDefault();
+          }
+        }, true);
+        document.addEventListener('drop', (e) => {
+          e.preventDefault();
+        }, true);
+        document.addEventListener('dragover', (e) => {
+          e.preventDefault();
+        }, true);
+      `).catch(() => {});
+    });
+
+    // 应用默认缩放因子（在 dom-ready 后应用，因为加载时可能被重置）
+    const defaultZoom = this.defaultZoomFactor;
+    view.webContents.once('dom-ready', () => {
+      view.webContents.setZoomFactor(defaultZoom);
+    });
+
     // 加载 URL
     if (url && url !== 'about:blank') {
       view.webContents.loadURL(url).catch(err => {
@@ -358,6 +384,29 @@ class WebContentsViewManager extends EventEmitter {
     }
 
     return view;
+  }
+
+  /**
+   * 设置默认缩放因子，并立即更新所有标签页
+   *
+   * @param {number} factor - 缩放因子 (0.5-2.0)
+   */
+  setDefaultZoomFactor(factor) {
+    this.defaultZoomFactor = Math.max(0.5, Math.min(2.0, factor));
+
+    // 立即更新所有现有标签页的缩放
+    this.contentViews.forEach((view, tabId) => {
+      try {
+        const url = view.webContents.getURL();
+        const hostname = new URL(url).hostname;
+        const offset = this.zoomOffsetsByDomain.get(hostname) || 1.0;
+        const finalZoom = this.defaultZoomFactor * offset;
+        view.webContents.setZoomFactor(finalZoom);
+      } catch (err) {
+        // 对于无效 URL（如空白页），直接使用默认缩放
+        view.webContents.setZoomFactor(this.defaultZoomFactor);
+      }
+    });
   }
 
   /**
@@ -553,86 +602,104 @@ class WebContentsViewManager extends EventEmitter {
   }
 
   /**
-   * 放大
+   * 放大（增加域名偏移量）
    */
   zoomIn() {
     const activeView = this.getActiveView();
     if (!activeView) return;
 
-    const currentZoom = activeView.webContents.getZoomFactor();
-    const newZoom = Math.min(3.0, currentZoom + 0.1);
-    activeView.webContents.setZoomFactor(newZoom);
+    try {
+      const url = activeView.webContents.getURL();
+      const hostname = new URL(url).hostname;
 
-    // 保存到域名映射
-    this.saveZoomForCurrentDomain(activeView, newZoom);
+      // 获取当前偏移量，增加 0.1
+      const currentOffset = this.zoomOffsetsByDomain.get(hostname) || 1.0;
+      const newOffset = Math.min(3.0, currentOffset + 0.1);
+      this.zoomOffsetsByDomain.set(hostname, newOffset);
 
-    // 通知 navbar 显示缩放指示器
-    if (this.navBarView && this.navBarView.webContents) {
-      this.navBarView.webContents.send('zoom.changed', {
-        factor: newZoom,
-        percentage: Math.round(newZoom * 100)
-      });
+      // 计算最终缩放
+      const finalZoom = this.defaultZoomFactor * newOffset;
+      activeView.webContents.setZoomFactor(finalZoom);
+
+      // 通知 navbar 显示缩放指示器
+      if (this.navBarView && this.navBarView.webContents) {
+        this.navBarView.webContents.send('zoom.changed', {
+          factor: finalZoom,
+          percentage: Math.round(finalZoom * 100)
+        });
+      }
+    } catch (err) {
+      // 对于无效 URL，直接调整绝对缩放
+      const currentZoom = activeView.webContents.getZoomFactor();
+      const newZoom = Math.min(3.0, currentZoom + 0.1);
+      activeView.webContents.setZoomFactor(newZoom);
     }
   }
 
   /**
-   * 缩小
+   * 缩小（减少域名偏移量）
    */
   zoomOut() {
     const activeView = this.getActiveView();
     if (!activeView) return;
 
-    const currentZoom = activeView.webContents.getZoomFactor();
-    const newZoom = Math.max(0.5, currentZoom - 0.1);
-    activeView.webContents.setZoomFactor(newZoom);
+    try {
+      const url = activeView.webContents.getURL();
+      const hostname = new URL(url).hostname;
 
-    this.saveZoomForCurrentDomain(activeView, newZoom);
+      // 获取当前偏移量，减少 0.1
+      const currentOffset = this.zoomOffsetsByDomain.get(hostname) || 1.0;
+      const newOffset = Math.max(0.3, currentOffset - 0.1);
+      this.zoomOffsetsByDomain.set(hostname, newOffset);
 
-    if (this.navBarView && this.navBarView.webContents) {
-      this.navBarView.webContents.send('zoom.changed', {
-        factor: newZoom,
-        percentage: Math.round(newZoom * 100)
-      });
+      // 计算最终缩放
+      const finalZoom = this.defaultZoomFactor * newOffset;
+      activeView.webContents.setZoomFactor(finalZoom);
+
+      if (this.navBarView && this.navBarView.webContents) {
+        this.navBarView.webContents.send('zoom.changed', {
+          factor: finalZoom,
+          percentage: Math.round(finalZoom * 100)
+        });
+      }
+    } catch (err) {
+      // 对于无效 URL，直接调整绝对缩放
+      const currentZoom = activeView.webContents.getZoomFactor();
+      const newZoom = Math.max(0.5, currentZoom - 0.1);
+      activeView.webContents.setZoomFactor(newZoom);
     }
   }
 
   /**
-   * 重置缩放
+   * 重置缩放（清除域名偏移，恢复到全局默认值）
    */
   zoomReset() {
     const activeView = this.getActiveView();
     if (!activeView) return;
 
-    activeView.webContents.setZoomFactor(1.0);
+    // 清除该域名的偏移设置
+    try {
+      const url = activeView.webContents.getURL();
+      const hostname = new URL(url).hostname;
+      this.zoomOffsetsByDomain.delete(hostname);
+    } catch (err) {
+      // 忽略无效 URL
+    }
 
-    this.saveZoomForCurrentDomain(activeView, 1.0);
+    // 应用全局默认缩放（无偏移）
+    const resetZoom = this.defaultZoomFactor;
+    activeView.webContents.setZoomFactor(resetZoom);
 
     if (this.navBarView && this.navBarView.webContents) {
       this.navBarView.webContents.send('zoom.changed', {
-        factor: 1.0,
-        percentage: 100
+        factor: resetZoom,
+        percentage: Math.round(resetZoom * 100)
       });
     }
   }
 
   /**
-   * 保存当前域名的缩放级别
-   *
-   * @param {WebContentsView} view - 当前 view
-   * @param {number} zoomFactor - 缩放因子
-   */
-  saveZoomForCurrentDomain(view, zoomFactor) {
-    try {
-      const url = view.webContents.getURL();
-      const hostname = new URL(url).hostname;
-      this.zoomLevelsByDomain.set(hostname, zoomFactor);
-    } catch (err) {
-      // 忽略无效 URL
-    }
-  }
-
-  /**
-   * 恢复域名的缩放级别
+   * 恢复域名的缩放级别（使用偏移量）
    *
    * @param {WebContentsView} view - 当前 view
    * @param {string} url - 当前 URL
@@ -640,12 +707,12 @@ class WebContentsViewManager extends EventEmitter {
   restoreZoomForDomain(view, url) {
     try {
       const hostname = new URL(url).hostname;
-      if (this.zoomLevelsByDomain.has(hostname)) {
-        const zoomFactor = this.zoomLevelsByDomain.get(hostname);
-        view.webContents.setZoomFactor(zoomFactor);
-      }
+      const offset = this.zoomOffsetsByDomain.get(hostname) || 1.0;
+      const finalZoom = this.defaultZoomFactor * offset;
+      view.webContents.setZoomFactor(finalZoom);
     } catch (err) {
-      // 忽略无效 URL
+      // 对于无效 URL，使用默认缩放
+      view.webContents.setZoomFactor(this.defaultZoomFactor);
     }
   }
 

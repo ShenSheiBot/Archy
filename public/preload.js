@@ -24,6 +24,7 @@ contextBridge.exposeInMainWorld('electron', {
         'overlay.mouse-events',
         'startup.behavior.set',
         'startup.url.set',
+        'globalZoom.set',
         'fullscreen.enter',
         'fullscreen.leave',
         'traffic-lights.show',
@@ -91,7 +92,8 @@ contextBridge.exposeInMainWorld('electron', {
         'shortcut.get',
         'tabs.get',
         'startup.behavior.get',
-        'startup.url.get'
+        'startup.url.get',
+        'globalZoom.get'
       ];
       if (validChannels.includes(channel)) {
         return ipcRenderer.sendSync(channel);
@@ -100,3 +102,19 @@ contextBridge.exposeInMainWorld('electron', {
   },
   platform: platform
 });
+
+// 阻止链接拖放到外部浏览器
+document.addEventListener('dragstart', (e) => {
+  // 如果拖动的是链接，阻止默认行为
+  if (e.target.tagName === 'A' || e.target.closest('a')) {
+    e.preventDefault();
+  }
+}, true);
+
+document.addEventListener('drop', (e) => {
+  e.preventDefault();
+}, true);
+
+document.addEventListener('dragover', (e) => {
+  e.preventDefault();
+}, true);

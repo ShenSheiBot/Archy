@@ -17,7 +17,9 @@ class Settings extends React.Component {
     recordedDetachedKeys: [],
     // Startup options
     startupBehavior: ipcRenderer.sendSync('startup.behavior.get') || 'restore',  // 'blank', 'restore', 'url'
-    startupUrl: ipcRenderer.sendSync('startup.url.get') || 'https://www.google.com'
+    startupUrl: ipcRenderer.sendSync('startup.url.get') || 'https://www.google.com',
+    // Global zoom
+    globalZoom: ipcRenderer.sendSync('globalZoom.get') || 100
   };
 
   componentDidMount() {
@@ -37,6 +39,17 @@ class Settings extends React.Component {
   setOpacity = debounce((opacity) => {
     ipcRenderer.send('opacity.set', opacity);
   }, 400);
+
+  // Debounce global zoom setter
+  setGlobalZoom = debounce((zoom) => {
+    ipcRenderer.send('globalZoom.set', zoom);
+  }, 400);
+
+  onGlobalZoomChange = (e) => {
+    const zoom = parseInt(e.target.value);
+    this.setState({ globalZoom: zoom });
+    this.setGlobalZoom(zoom);
+  };
 
   onOpacitySync = (event, opacity) => {
     this.setState({ opacity });
@@ -236,7 +249,7 @@ class Settings extends React.Component {
   };
 
   render() {
-    const { isRecording, recordedKeys, globalShortcut, isRecordingDetached, recordedDetachedKeys, detachedShortcut, startupBehavior, startupUrl } = this.state;
+    const { isRecording, recordedKeys, globalShortcut, isRecordingDetached, recordedDetachedKeys, detachedShortcut, startupBehavior, startupUrl, globalZoom } = this.state;
     const displayShortcut = isRecording
       ? (recordedKeys.length > 0 ? recordedKeys.join('+') : 'Press keys...')
       : globalShortcut;
@@ -254,6 +267,11 @@ class Settings extends React.Component {
         <div className="setting-control opacity-picker">
           <i className="fa fa-adjust opacity-icon" title="Opacity"/>
           <input type="range" onChange={ this.onOpacityChange } value={ this.state.opacity } min="20" max="100" className="slider" id="opacity-picker"/>
+        </div>
+        <div className="setting-control zoom-picker">
+          <i className="fa fa-search-plus zoom-icon" title="Default Zoom"/>
+          <input type="range" onChange={ this.onGlobalZoomChange } value={ globalZoom } min="50" max="200" step="10" className="slider" id="zoom-picker"/>
+          <span className="zoom-value">{globalZoom}%</span>
         </div>
         <div className="setting-control shortcut-picker">
           <i className="fa fa-keyboard-o shortcut-icon" title="Toggle Window Shortcut"/>
