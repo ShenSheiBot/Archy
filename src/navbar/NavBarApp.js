@@ -12,6 +12,7 @@ const { ipcRenderer, platform } = window.electron;
  */
 class NavBarApp extends Component {
   urlInput = React.createRef();
+  tabBarRef = React.createRef();
   platform = (platform || '').toLowerCase();
 
   state = {
@@ -64,6 +65,8 @@ class NavBarApp extends Component {
       if (activeTab) {
         this.setState({ url: activeTab.url || '' });
       }
+      // 自动滚动到活跃标签
+      this.scrollToActiveTab();
     } else {
       // Update URL if active tab's URL changed
       const activeTab = this.state.tabs.find(t => t.id === this.state.activeTabId);
@@ -72,7 +75,28 @@ class NavBarApp extends Component {
         this.setState({ url: activeTab.url || '' });
       }
     }
+
+    // 新建标签时也滚动到最新标签
+    if (this.state.tabs.length > prevState.tabs.length) {
+      this.scrollToActiveTab();
+    }
   }
+
+  // 滚动到活跃标签
+  scrollToActiveTab = () => {
+    if (!this.tabBarRef.current) return;
+    const activeTab = this.tabBarRef.current.querySelector('.tab.active');
+    if (activeTab) {
+      activeTab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+    }
+  };
+
+  // 鼠标滚轮水平滚动标签栏
+  handleTabBarWheel = (e) => {
+    if (!this.tabBarRef.current) return;
+    e.preventDefault();
+    this.tabBarRef.current.scrollLeft += e.deltaY;
+  };
 
   // IPC Handlers
   handleTabsUpdate = (event, { tabs, activeTabId }) => {
@@ -197,7 +221,7 @@ class NavBarApp extends Component {
     const { tabs, activeTabId } = this.state;
 
     return (
-      <div className="tab-bar">
+      <div className="tab-bar" ref={this.tabBarRef} onWheel={this.handleTabBarWheel}>
         {tabs.map(tab => (
           <div
             key={tab.id}

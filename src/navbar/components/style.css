@@ -57,7 +57,7 @@ html[data-theme="dark"] .top-nav {
   gap: 2px;
   overflow-x: auto;
   flex-shrink: 0;
-  max-width: 40%;
+  max-width: 60%;
   padding: 0 2px;
   -webkit-app-region: no-drag; /* Allow tab interactions */
 }
