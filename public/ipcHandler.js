@@ -30,7 +30,9 @@ function bindIpcHandlers(handlers) {
     getStartupUrl,
     setStartupUrl,
     getGlobalZoom,
-    setGlobalZoom
+    setGlobalZoom,
+    getDetachedOpacity,
+    setDetachedOpacity
   } = handlers;
 
   // Remove all existing listeners to avoid duplicates
@@ -60,6 +62,8 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('startup.url.set');
   ipcMain.removeAllListeners('globalZoom.get');
   ipcMain.removeAllListeners('globalZoom.set');
+  ipcMain.removeAllListeners('detachedOpacity.get');
+  ipcMain.removeAllListeners('detachedOpacity.set');
   ipcMain.removeAllListeners('fullscreen.enter');
   ipcMain.removeAllListeners('fullscreen.leave');
   ipcMain.removeAllListeners('traffic-lights.show');
@@ -209,6 +213,15 @@ function bindIpcHandlers(handlers) {
 
   ipcMain.on('globalZoom.set', (event, zoom) => {
     setGlobalZoom(zoom);
+  });
+
+  // Detached opacity handlers
+  ipcMain.on('detachedOpacity.get', (event) => {
+    event.returnValue = getDetachedOpacity();
+  });
+
+  ipcMain.on('detachedOpacity.set', (event, opacity) => {
+    setDetachedOpacity(opacity);
   });
 
   // Fullscreen handlers - hide/show traffic lights

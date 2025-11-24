@@ -51,6 +51,9 @@ let startupConfig = {
 // Global zoom level (percentage, 50-200)
 let globalZoom = 100;
 
+// Detached mode opacity (percentage, 20-100)
+let detachedOpacity = 50;
+
 // Save session to disk
 function saveSession() {
   const tabs = tabManager.getTabs();
@@ -65,7 +68,8 @@ function saveSession() {
     globalShortcut: shortcutsManager.getCurrentGlobalShortcut(),
     detachedModeShortcut: shortcutsManager.getDetachedModeShortcut(),
     startup: startupConfig,
-    globalZoom: globalZoom
+    globalZoom: globalZoom,
+    detachedOpacity: detachedOpacity
   };
 
   // Save window bounds and opacity if window exists
@@ -112,6 +116,11 @@ function restoreSession() {
   // Restore global zoom
   if (session.globalZoom !== undefined) {
     globalZoom = session.globalZoom;
+  }
+
+  // Restore detached opacity
+  if (session.detachedOpacity !== undefined) {
+    detachedOpacity = session.detachedOpacity;
   }
 
   // Apply startup behavior
@@ -433,7 +442,9 @@ function registerGlobalShortcut(shortcut, skipSave = false) {
 function registerDetachedModeShortcut(shortcut, skipSave = false) {
   const success = shortcutsManager.registerDetachedModeShortcut(shortcut, () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
-      windowManager.toggleDetachedMode(mainWindow);
+      windowManager.toggleDetachedMode(mainWindow, {
+        getDetachedOpacity: () => detachedOpacity
+      });
     }
   });
 
@@ -541,6 +552,11 @@ function bindIpc() {
       if (mainWindow && mainWindow.viewManager) {
         mainWindow.viewManager.setDefaultZoomFactor(zoom / 100);
       }
+      saveSession();
+    },
+    getDetachedOpacity: () => detachedOpacity,
+    setDetachedOpacity: (opacity) => {
+      detachedOpacity = opacity;
       saveSession();
     }
   });
