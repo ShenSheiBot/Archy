@@ -15,13 +15,21 @@ class NavBarApp extends Component {
   tabBarRef = React.createRef();
   platform = (platform || '').toLowerCase();
 
+  // Mouse-based drag info (not using HTML5 DnD)
+  dragInfo = {
+    dragging: false,
+    sourceTabId: null
+  };
+
   state = {
     tabs: [],
     activeTabId: null,
     url: '',
     showZoomIndicator: false,
     currentZoom: 100,
-    navbarHidden: false
+    navbarHidden: false,
+    draggedTabId: null,
+    dropIndicatorPosition: null
   };
 
   componentDidMount() {
@@ -41,6 +49,10 @@ class NavBarApp extends Component {
     ipcRenderer.on('nav.hide', this.handleNavHide);
     ipcRenderer.on('nav.show', this.handleNavShow);
 
+    // Global mouse event listeners for drag-and-drop
+    window.addEventListener('mousemove', this.handleWindowMouseMove);
+    window.addEventListener('mouseup', this.handleWindowMouseUp);
+
     // Request initial tabs data
     this.requestTabsUpdate();
   }
@@ -52,6 +64,10 @@ class NavBarApp extends Component {
     ipcRenderer.removeListener('zoom.changed', this.handleZoomChanged);
     ipcRenderer.removeListener('nav.hide', this.handleNavHide);
     ipcRenderer.removeListener('nav.show', this.handleNavShow);
+
+    // Remove global mouse event listeners
+    window.removeEventListener('mousemove', this.handleWindowMouseMove);
+    window.removeEventListener('mouseup', this.handleWindowMouseUp);
 
     if (this.zoomTimeout) {
       clearTimeout(this.zoomTimeout);
@@ -145,6 +161,126 @@ class NavBarApp extends Component {
     ipcRenderer.send('tab.switch', tabId);
   };
 
+  handleTabContextMenu = (e, tabId) => {
+    e.preventDefault();
+    e.stopPropagation();
+    ipcRenderer.send('tab.showContextMenu', tabId);
+  };
+
+  handleTabMouseDown = (e, tabId) => {
+    // Middle click (button 1) to close tab
+    if (e.button === 1) {
+      e.preventDefault();
+      e.stopPropagation();
+      this.handleCloseTab(tabId);
+      return;
+    }
+
+    // Left click: start mouse-based drag
+    if (e.button === 0) {
+      this.dragInfo.dragging = true;
+      this.dragInfo.sourceTabId = tabId;
+
+      this.setState({
+        draggedTabId: tabId,
+        dropIndicatorPosition: null
+      });
+    }
+  };
+
+  handleWindowMouseMove = (e) => {
+    if (!this.dragInfo.dragging) return;
+    if (!this.tabBarRef.current) return;
+
+    const { tabs } = this.state;
+    if (!tabs || tabs.length === 0) return;
+
+    const mouseX = e.clientX;
+
+    // Get all tab DOM elements (in order)
+    const tabElements = Array.from(
+      this.tabBarRef.current.querySelectorAll('.tab')
+    );
+
+    if (tabElements.length === 0) return;
+
+    let targetTabId = null;
+    let position = 'after';
+
+    for (const el of tabElements) {
+      const rect = el.getBoundingClientRect();
+      const midpoint = rect.left + rect.width / 2;
+
+      const elTabId = Number(el.dataset.tabId);
+      if (!elTabId) continue;
+
+      if (mouseX < midpoint) {
+        targetTabId = elTabId;
+        position = 'before';
+        break;
+      }
+    }
+
+    // If mouse is to the right of all tabs, place indicator after the last tab
+    if (!targetTabId) {
+      const lastEl = tabElements[tabElements.length - 1];
+      if (lastEl) {
+        targetTabId = Number(lastEl.dataset.tabId);
+        position = 'after';
+      }
+    }
+
+    if (!targetTabId) {
+      this.setState({ dropIndicatorPosition: null });
+      return;
+    }
+
+    this.setState({
+      dropIndicatorPosition: { tabId: targetTabId, position }
+    });
+  };
+
+  handleWindowMouseUp = () => {
+    if (!this.dragInfo.dragging) return;
+
+    const { tabs, dropIndicatorPosition } = this.state;
+    const draggedTabId = this.dragInfo.sourceTabId;
+
+    this.dragInfo.dragging = false;
+    this.dragInfo.sourceTabId = null;
+
+    // Clear drag visual state
+    this.setState({
+      draggedTabId: null,
+      dropIndicatorPosition: null
+    });
+
+    if (!draggedTabId || !dropIndicatorPosition) return;
+    if (dropIndicatorPosition.tabId === draggedTabId &&
+        dropIndicatorPosition.position === 'after') {
+      // Dropped after itself, no change
+      return;
+    }
+
+    const fromIndex = tabs.findIndex(t => t.id === draggedTabId);
+    let toIndex = tabs.findIndex(t => t.id === dropIndicatorPosition.tabId);
+
+    if (fromIndex === -1 || toIndex === -1) return;
+
+    if (dropIndicatorPosition.position === 'after') {
+      toIndex += 1;
+    }
+
+    // Prevent off-by-one when dropping after itself
+    if (fromIndex < toIndex) {
+      toIndex -= 1;
+    }
+
+    if (fromIndex !== toIndex) {
+      ipcRenderer.send('tab.reorder', { fromIndex, toIndex });
+    }
+  };
+
   // Navigation operations
   handleReload = () => {
     if (!this.state.activeTabId) return;
@@ -218,23 +354,36 @@ class NavBarApp extends Component {
 
   // Render methods
   renderTabs() {
-    const { tabs, activeTabId } = this.state;
+    const { tabs, activeTabId, draggedTabId, dropIndicatorPosition } = this.state;
 
     return (
       <div className="tab-bar" ref={this.tabBarRef} onWheel={this.handleTabBarWheel}>
-        {tabs.map(tab => (
-          <div
-            key={tab.id}
-            className={`tab ${tab.id === activeTabId ? 'active' : ''}`}
-            onClick={() => this.handleSwitchTab(tab.id)}
-          >
-            {tab.favicon ? (
-              <img src={tab.favicon} className="tab-favicon" alt="" />
-            ) : (
-              <i className="fa fa-globe tab-icon"/>
-            )}
-          </div>
-        ))}
+        {tabs.map(tab => {
+          const isActive = tab.id === activeTabId;
+          const isDragging = tab.id === draggedTabId;
+          const showDropBefore = dropIndicatorPosition?.tabId === tab.id && dropIndicatorPosition?.position === 'before';
+          const showDropAfter = dropIndicatorPosition?.tabId === tab.id && dropIndicatorPosition?.position === 'after';
+
+          return (
+            <React.Fragment key={tab.id}>
+              {showDropBefore && <div className="drop-indicator" />}
+              <div
+                className={`tab ${isActive ? 'active' : ''} ${isDragging ? 'dragging' : ''}`}
+                data-tab-id={tab.id}
+                onClick={() => this.handleSwitchTab(tab.id)}
+                onMouseDown={(e) => this.handleTabMouseDown(e, tab.id)}
+                onContextMenu={(e) => this.handleTabContextMenu(e, tab.id)}
+              >
+                {tab.favicon ? (
+                  <img src={tab.favicon} className="tab-favicon" alt="" draggable="false" />
+                ) : (
+                  <i className="fa fa-globe tab-icon" draggable="false"/>
+                )}
+              </div>
+              {showDropAfter && <div className="drop-indicator" />}
+            </React.Fragment>
+          );
+        })}
       </div>
     );
   }

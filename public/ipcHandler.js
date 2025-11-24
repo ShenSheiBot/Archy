@@ -24,6 +24,12 @@ function bindIpcHandlers(handlers) {
     navigateTab,
     updateTab,
     getTabs,
+    reorderTab,
+    closeOtherTabs,
+    closeTabsToRight,
+    duplicateTab,
+    reloadTab,
+    showTabContextMenu,
     relayToRenderer,
     getStartupBehavior,
     setStartupBehavior,
@@ -67,6 +73,11 @@ function bindIpcHandlers(handlers) {
   ipcMain.removeAllListeners('fullscreen.enter');
   ipcMain.removeAllListeners('fullscreen.leave');
   ipcMain.removeAllListeners('traffic-lights.show');
+  ipcMain.removeAllListeners('tab.reorder');
+  ipcMain.removeAllListeners('tab.showContextMenu');
+  ipcMain.removeAllListeners('tab.closeOther');
+  ipcMain.removeAllListeners('tab.closeToRight');
+  ipcMain.removeAllListeners('tab.duplicate');
 
   // Opacity handlers
   ipcMain.on('opacity.get', (event) => {
@@ -122,6 +133,28 @@ function bindIpcHandlers(handlers) {
 
   ipcMain.on('tabs.get', (event) => {
     event.returnValue = getTabs();
+  });
+
+  // New tab handlers
+  ipcMain.on('tab.reorder', (event, { fromIndex, toIndex }) => {
+    reorderTab(fromIndex, toIndex);
+  });
+
+  ipcMain.on('tab.showContextMenu', (event, tabId) => {
+    console.log('[IPC] Received tab.showContextMenu for tab:', tabId);
+    showTabContextMenu(tabId);
+  });
+
+  ipcMain.on('tab.closeOther', (event, tabId) => {
+    closeOtherTabs(tabId);
+  });
+
+  ipcMain.on('tab.closeToRight', (event, tabId) => {
+    closeTabsToRight(tabId);
+  });
+
+  ipcMain.on('tab.duplicate', (event, tabId) => {
+    duplicateTab(tabId);
   });
 
   // Navbar relay handlers - relay messages from renderer to renderer

@@ -10,6 +10,22 @@ const { contextBridge, ipcRenderer } = require('electron');
 // Get platform info before exposing to renderer
 const platform = process.platform;
 
+// Enable HTML5 drag-and-drop for tab reordering
+// This MUST run before React mounts to ensure Chromium recognizes drop targets
+window.addEventListener('DOMContentLoaded', () => {
+  // Allow internal HTML5 DnD without triggering browser navigation
+  document.addEventListener('dragover', (e) => {
+    e.preventDefault(); // Required for drop to fire
+    // Don't stopPropagation - React needs to see these events
+  });
+
+  document.addEventListener('drop', (e) => {
+    // Prevent dropped files/URLs from navigating the navbar view
+    e.preventDefault();
+    // Don't stopPropagation - React needs to see these events
+  });
+});
+
 contextBridge.exposeInMainWorld('electron', {
   ipcRenderer: {
     send: (channel, data) => {
@@ -23,6 +39,8 @@ contextBridge.exposeInMainWorld('electron', {
         'tab.reload',
         'tab.back',
         'tab.forward',
+        'tab.showContextMenu',
+        'tab.reorder',
 
         // Navigation and settings
         'nav.hide',
@@ -37,10 +55,7 @@ contextBridge.exposeInMainWorld('electron', {
 
         // Fullscreen
         'fullscreen.enter',
-        'fullscreen.leave',
-
-        // Debug logging
-        'log'
+        'fullscreen.leave'
       ];
 
       if (validChannels.includes(channel)) {

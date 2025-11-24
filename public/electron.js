@@ -365,6 +365,49 @@ function navigateTab(tabId, targetUrl) {
   return tabManager.navigateTab(tabId, targetUrl, sendTabsUpdate);
 }
 
+function showTabContextMenu(tabId) {
+  console.log('[Main] showTabContextMenu called for tab:', tabId);
+  const tabs = tabManager.getTabs();
+  const tabIndex = tabs.findIndex(t => t.id === tabId);
+
+  if (tabIndex === -1) {
+    console.log('[Main] Tab not found:', tabId);
+    return;
+  }
+
+  const template = [
+    {
+      label: 'Close',
+      click: () => closeTab(tabId)
+    },
+    {
+      label: 'Close Other Tabs',
+      enabled: tabs.length > 1,
+      click: () => tabManager.closeOtherTabs(tabId, sendTabsUpdate)
+    },
+    {
+      label: 'Close Tabs to Right',
+      enabled: tabIndex < tabs.length - 1,
+      click: () => tabManager.closeTabsToRight(tabId, sendTabsUpdate)
+    },
+    {
+      type: 'separator'
+    },
+    {
+      label: 'Duplicate Tab',
+      click: () => tabManager.duplicateTab(tabId, sendTabsUpdate)
+    },
+    {
+      label: 'Reload Tab',
+      click: () => tabManager.reloadTab(tabId)
+    }
+  ];
+
+  const menu = Menu.buildFromTemplate(template);
+  menu.popup();
+  console.log('[Main] Context menu shown');
+}
+
 function bindShortcutsToWebContents(webContents) {
   const callbacks = {
     createTab: (url) => createTab(url),
@@ -531,6 +574,12 @@ function bindIpc() {
     navigateTab: (tabId, url) => navigateTab(tabId, url),
     updateTab: (tabId, updates) => tabManager.updateTab(tabId, updates, sendTabsUpdate),
     getTabs: () => tabManager.getTabsData(),
+    reorderTab: (fromIndex, toIndex) => tabManager.reorderTab(fromIndex, toIndex, sendTabsUpdate),
+    closeOtherTabs: (tabId) => tabManager.closeOtherTabs(tabId, sendTabsUpdate),
+    closeTabsToRight: (tabId) => tabManager.closeTabsToRight(tabId, sendTabsUpdate),
+    duplicateTab: (tabId) => tabManager.duplicateTab(tabId, sendTabsUpdate),
+    reloadTab: (tabId) => tabManager.reloadTab(tabId),
+    showTabContextMenu: (tabId) => showTabContextMenu(tabId),
     relayToRenderer: (channel, ...args) => {
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(channel, ...args);

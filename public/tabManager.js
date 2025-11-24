@@ -250,6 +250,158 @@ function clearTabs() {
   pendingUpdates.clear();
 }
 
+/**
+ * Reorder a tab from one position to another
+ * @param {number} fromIndex - Source index
+ * @param {number} toIndex - Destination index
+ * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
+ * @returns {boolean} True if successful
+ */
+function reorderTab(fromIndex, toIndex, sendUpdateCallback) {
+  if (fromIndex < 0 || fromIndex >= tabs.length || toIndex < 0 || toIndex >= tabs.length) {
+    return false;
+  }
+
+  if (fromIndex === toIndex) {
+    return true;
+  }
+
+  // Remove tab from original position
+  const [movedTab] = tabs.splice(fromIndex, 1);
+
+  // Insert at new position
+  tabs.splice(toIndex, 0, movedTab);
+
+  if (sendUpdateCallback) {
+    sendUpdateCallback();
+  }
+
+  return true;
+}
+
+/**
+ * Close all tabs except the specified one
+ * @param {number} keepTabId - Tab ID to keep open
+ * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
+ * @returns {boolean} True if successful
+ */
+async function closeOtherTabs(keepTabId, sendUpdateCallback) {
+  const keepTab = tabs.find(t => t.id === keepTabId);
+  if (!keepTab) return false;
+
+  const tabsToClose = tabs.filter(t => t.id !== keepTabId);
+
+  // Close all other tabs
+  for (const tab of tabsToClose) {
+    if (viewManager) {
+      await viewManager.closeTab(tab.id);
+    }
+  }
+
+  tabs = [keepTab];
+  activeTabId = keepTabId;
+
+  if (sendUpdateCallback) {
+    sendUpdateCallback();
+  }
+
+  return true;
+}
+
+/**
+ * Close all tabs to the right of the specified tab
+ * @param {number} tabId - Tab ID
+ * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
+ * @returns {boolean} True if successful
+ */
+async function closeTabsToRight(tabId, sendUpdateCallback) {
+  const tabIndex = tabs.findIndex(t => t.id === tabId);
+  if (tabIndex === -1) return false;
+
+  const tabsToClose = tabs.slice(tabIndex + 1);
+
+  // Close tabs to the right
+  for (const tab of tabsToClose) {
+    if (viewManager) {
+      await viewManager.closeTab(tab.id);
+    }
+  }
+
+  tabs = tabs.slice(0, tabIndex + 1);
+
+  // If active tab was closed, switch to the specified tab
+  if (activeTabId && !tabs.find(t => t.id === activeTabId)) {
+    activeTabId = tabId;
+    if (viewManager) {
+      viewManager.switchToTab(tabId);
+    }
+  }
+
+  if (sendUpdateCallback) {
+    sendUpdateCallback();
+  }
+
+  return true;
+}
+
+/**
+ * Duplicate a tab
+ * @param {number} tabId - Tab ID to duplicate
+ * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
+ * @returns {number|null} New tab ID or null if failed
+ */
+function duplicateTab(tabId, sendUpdateCallback) {
+  const sourceTab = tabs.find(t => t.id === tabId);
+  if (!sourceTab) return null;
+
+  const newTabId = nextTabId++;
+  const tabIndex = tabs.findIndex(t => t.id === tabId);
+
+  const newTab = {
+    id: newTabId,
+    url: sourceTab.url,
+    title: sourceTab.title,
+    favicon: sourceTab.favicon,
+    loading: false
+  };
+
+  // Insert new tab right after the source tab
+  tabs.splice(tabIndex + 1, 0, newTab);
+  activeTabId = newTabId;
+
+  // Create WebContentsView in main process
+  if (viewManager) {
+    viewManager.createView(newTabId, newTab.url);
+    viewManager.switchToTab(newTabId);
+  }
+
+  if (sendUpdateCallback) {
+    sendUpdateCallback();
+  }
+
+  return newTabId;
+}
+
+/**
+ * Reload a tab
+ * @param {number} tabId - Tab ID to reload
+ * @returns {boolean} True if successful
+ */
+function reloadTab(tabId) {
+  const tab = tabs.find(t => t.id === tabId);
+  if (!tab) return false;
+
+  if (viewManager) {
+    const view = viewManager.getView(tabId);
+    if (view && view.webContents) {
+      view.webContents.reloadIgnoringCache();
+      return true;
+    }
+  }
+
+  return false;
+}
+
 module.exports = {
   getTabs,
   getActiveTabId,
@@ -261,5 +413,10 @@ module.exports = {
   updateTab,
   getTabsData,
   clearTabs,
-  setViewManager
+  setViewManager,
+  reorderTab,
+  closeOtherTabs,
+  closeTabsToRight,
+  duplicateTab,
+  reloadTab
 };

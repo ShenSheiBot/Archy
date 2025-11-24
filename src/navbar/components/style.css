@@ -140,6 +140,35 @@ html[data-theme="dark"] .tab-icon {
   flex-shrink: 0;
 }
 
+/* Tab dragging state */
+.tab.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+/* Drop indicator */
+.drop-indicator {
+  width: 2px;
+  height: 26px;
+  background: #007bff;
+  border-radius: 1px;
+  flex-shrink: 0;
+  margin: 0 1px;
+  box-shadow: 0 0 4px rgba(0, 123, 255, 0.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  .drop-indicator {
+    background: #0a84ff;
+    box-shadow: 0 0 4px rgba(10, 132, 255, 0.6);
+  }
+}
+
+html[data-theme="dark"] .drop-indicator {
+  background: #0a84ff;
+  box-shadow: 0 0 4px rgba(10, 132, 255, 0.6);
+}
+
 /* Nav controls */
 .nav-controls {
   display: flex;
