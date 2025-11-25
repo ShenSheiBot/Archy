@@ -56,7 +56,9 @@ contextBridge.exposeInMainWorld('electron', {
         'zoom.reset',
         'detached.enter',
         'detached.restore',
-        'detached.exit'
+        'detached.exit',
+        'fullscreen.dragbar.show',
+        'fullscreen.dragbar.hide'
       ];
       if (validChannels.includes(channel)) {
         // Deliberately strip event as it includes `sender`
@@ -80,7 +82,9 @@ contextBridge.exposeInMainWorld('electron', {
         'zoom.reset',
         'detached.enter',
         'detached.restore',
-        'detached.exit'
+        'detached.exit',
+        'fullscreen.dragbar.show',
+        'fullscreen.dragbar.hide'
       ];
       if (validChannels.includes(channel)) {
         ipcRenderer.removeListener(channel, func);

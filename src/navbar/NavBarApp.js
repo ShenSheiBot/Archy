@@ -408,9 +408,9 @@ class NavBarApp extends Component {
     const { activeTabId, navbarHidden } = this.state;
     const navClasses = `top-nav ${this.platform === 'darwin' ? 'top-nav-mac' : ''}`;
 
-    // When navbar is hidden, show 15px drag strip
+    // When navbar is hidden, render nothing (overlay dragbar handles dragging)
     if (navbarHidden) {
-      return <div className="navbar-drag-strip" />;
+      return null;
     }
 
     // Normal navbar UI

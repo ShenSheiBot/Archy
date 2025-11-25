@@ -18,7 +18,7 @@ const EventEmitter = require('events');
 const path = require('path');
 
 const NAVBAR_FULL_HEIGHT = 38;   // 完整导航栏高度
-const NAVBAR_HIDDEN_HEIGHT = 15;  // 隐藏时的拖动条高度
+const NAVBAR_HIDDEN_HEIGHT = 0;  // 隐藏时高度为0，使用 overlay dragbar 代替
 
 class WebContentsViewManager extends EventEmitter {
   constructor(browserWindow, globalZoomPercentage = 100) {
@@ -575,6 +575,14 @@ class WebContentsViewManager extends EventEmitter {
     if (this.showNav === visible) return;
 
     this.showNav = visible;
+
+    // 隐藏导航栏时显示 overlay dragbar，显示导航栏时隐藏
+    if (!visible) {
+      this.showFullscreenDragBar();
+    } else {
+      this.hideFullscreenDragBar();
+    }
+
     this.updateAllViewBounds();
 
     this.emit('navbar-visibility-changed', { visible });
@@ -587,6 +595,10 @@ class WebContentsViewManager extends EventEmitter {
     if (this.isFullscreen) return;
 
     this.isFullscreen = true;
+
+    // 显示 dragbar overlay 以便用户可以拖动窗口
+    this.showFullscreenDragBar();
+
     this.updateAllViewBounds();
 
     this.emit('fullscreen-entered');
@@ -599,9 +611,57 @@ class WebContentsViewManager extends EventEmitter {
     if (!this.isFullscreen) return;
 
     this.isFullscreen = false;
+
+    // 隐藏全屏时的 dragbar overlay
+    this.hideFullscreenDragBar();
+
     this.updateAllViewBounds();
 
     this.emit('fullscreen-left');
+  }
+
+  /**
+   * 显示全屏模式下的 Overlay DragBar
+   */
+  showFullscreenDragBar() {
+    if (!this.overlayView) return;
+
+    // 只有当没有其他 overlay 模式时才显示 dragbar
+    if (this.overlayMode && this.overlayMode !== 'dragbar') return;
+
+    // 添加 overlay view 到窗口
+    if (!this.browserWindow.contentView.children.includes(this.overlayView)) {
+      this.browserWindow.contentView.addChildView(this.overlayView);
+    }
+
+    this.setOverlayDragBarBounds();
+
+    // 通知 overlay 显示 dragbar
+    if (this.overlayView.webContents) {
+      this.overlayView.webContents.send('fullscreen.dragbar.show');
+    }
+  }
+
+  /**
+   * 隐藏全屏模式下的 Overlay DragBar
+   */
+  hideFullscreenDragBar() {
+    if (!this.overlayView) return;
+
+    // 只有当前是 dragbar 模式才隐藏
+    if (this.overlayMode !== 'dragbar') return;
+
+    // 从窗口移除 overlay view
+    if (this.browserWindow.contentView.children.includes(this.overlayView)) {
+      this.browserWindow.contentView.removeChildView(this.overlayView);
+    }
+
+    this.overlayMode = null;
+
+    // 通知 overlay 隐藏 dragbar
+    if (this.overlayView.webContents) {
+      this.overlayView.webContents.send('fullscreen.dragbar.hide');
+    }
   }
 
   /**

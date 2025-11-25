@@ -15,7 +15,8 @@ class OverlayApp extends Component {
     searchShown: false,
     searchText: '',
     searchMatches: { current: 0, total: 0 },
-    navbarHidden: false  // Track navbar visibility for drag bar
+    navbarHidden: false,  // Track navbar visibility for drag bar
+    fullscreenDragbar: false  // Track fullscreen mode for drag bar
   };
 
   searchInput = React.createRef();
@@ -32,6 +33,10 @@ class OverlayApp extends Component {
     // Listen for navbar visibility changes
     ipcRenderer.on('navbar.hidden', () => this.setState({ navbarHidden: true }));
     ipcRenderer.on('navbar.shown', () => this.setState({ navbarHidden: false }));
+
+    // Listen for fullscreen dragbar visibility changes
+    ipcRenderer.on('fullscreen.dragbar.show', () => this.setState({ fullscreenDragbar: true }));
+    ipcRenderer.on('fullscreen.dragbar.hide', () => this.setState({ fullscreenDragbar: false }));
   }
 
   componentWillUnmount() {
@@ -40,6 +45,8 @@ class OverlayApp extends Component {
     ipcRenderer.removeListener('search.result', this.handleSearchResult);
     ipcRenderer.removeListener('navbar.hidden');
     ipcRenderer.removeListener('navbar.shown');
+    ipcRenderer.removeListener('fullscreen.dragbar.show');
+    ipcRenderer.removeListener('fullscreen.dragbar.hide');
   }
 
   handleSearchResult = (event, result) => {
@@ -176,12 +183,12 @@ class OverlayApp extends Component {
   };
 
   render() {
-    const { settingsShown, searchShown, searchText, searchMatches, navbarHidden } = this.state;
+    const { settingsShown, searchShown, searchText, searchMatches, navbarHidden, fullscreenDragbar } = this.state;
 
     return (
       <>
-        {/* Drag bar - only shown when navbar is hidden and no other overlay is active */}
-        {navbarHidden && !settingsShown && !searchShown && (
+        {/* Drag bar - shown when navbar is hidden OR in fullscreen mode, and no other overlay is active */}
+        {(navbarHidden || fullscreenDragbar) && !settingsShown && !searchShown && (
           <div className="drag-bar" />
         )}
 
