@@ -825,6 +825,21 @@ class WebContentsViewManager extends EventEmitter {
       this.emit('tab-update', { tabId, updates: { loading: false } });
     };
 
+    // 拦截导航请求，阻止外部协议（如 slack://）打开外部应用
+    listeners['will-navigate'] = (event, url) => {
+      try {
+        const urlObj = new URL(url);
+        // 只允许 http 和 https 协议
+        if (urlObj.protocol !== 'http:' && urlObj.protocol !== 'https:') {
+          event.preventDefault();
+          console.log('[ViewManager] Blocked external protocol:', url);
+        }
+      } catch (e) {
+        // URL 解析失败，阻止导航
+        event.preventDefault();
+      }
+    };
+
     // 开始加载
     listeners['did-start-loading'] = () => {
       this.emit('tab-update', { tabId, updates: { loading: true } });
