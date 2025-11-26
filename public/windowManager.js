@@ -147,8 +147,8 @@ function hardBounceOverlay(win, reason = 'hard-bounce') {
     win.setAlwaysOnTop(false);
     win.setVisibleOnAllWorkspaces(false);
 
-    // Re-enable with strong settings
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    // Re-enable with strong settings (level 22, same as iTerm2 floating)
+    win.setAlwaysOnTop(true, 'main-menu', -2);
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
     if (typeof win.moveTop === 'function') {
@@ -273,11 +273,11 @@ function configureNativeWindow(win) {
     // Try with handle first, but module will auto-find window if handle is invalid
     try {
       const nativeHandle = win.getNativeWindowHandle();
-      nativeWindow.setWindowLevel(nativeHandle, 'screen-saver');
+      nativeWindow.setWindowLevel(nativeHandle, 'iterm'); // Level 22, same as iTerm2 floating
       nativeWindow.setCollectionBehavior(nativeHandle, ['canJoinAllSpaces', 'fullScreenAuxiliary']);
     } catch (handleErr) {
       // Fallback: call without handle (auto-find window)
-      nativeWindow.setWindowLevel('screen-saver');
+      nativeWindow.setWindowLevel('iterm'); // Level 22, same as iTerm2 floating
       nativeWindow.setCollectionBehavior(['canJoinAllSpaces', 'fullScreenAuxiliary']);
     }
 
@@ -286,7 +286,7 @@ function configureNativeWindow(win) {
     console.log('[WindowManager] Native module not available:', err.message);
     // Fallback to Electron APIs if native module not available
     console.log('[WindowManager] Native module not available, using Electron APIs');
-    win.setAlwaysOnTop(true, 'screen-saver', 1);
+    win.setAlwaysOnTop(true, 'main-menu', -2); // Level 22, same as iTerm2 floating
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     if (typeof win.moveTop === 'function') {
       win.moveTop();

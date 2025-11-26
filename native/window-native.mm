@@ -120,6 +120,12 @@ napi_value SetWindowLevel(napi_env env, napi_callback_info info) {
     level = CGWindowLevelForKey(kCGPopUpMenuWindowLevelKey);
   } else if (strcmp(level_str, "status") == 0) {
     level = CGWindowLevelForKey(kCGStatusWindowLevelKey);
+  } else if (strcmp(level_str, "main-menu") == 0) {
+    level = CGWindowLevelForKey(kCGMainMenuWindowLevelKey); // Level 24
+  } else if (strcmp(level_str, "iterm") == 0) {
+    // Level 22: same as iTerm2 floating hotkey window (NSMainMenuWindowLevel - 2)
+    // Below notifications (23) but above normal windows, won't block Spotlight
+    level = CGWindowLevelForKey(kCGMainMenuWindowLevelKey) - 2;
   } else if (strcmp(level_str, "screen-saver") == 0) {
     level = CGWindowLevelForKey(kCGScreenSaverWindowLevelKey) + 1; // +1 to ensure above everything
   } else if (strcmp(level_str, "assistive") == 0) {
