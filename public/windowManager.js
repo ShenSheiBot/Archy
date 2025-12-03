@@ -181,16 +181,37 @@ function forceRedraw(win) {
 
 /**
  * Toggle window visibility and position
+ * Uses iTerm2-style async activation pattern for proper focus handling
  * @param {BrowserWindow} mainWindow - Main window instance
- * @param {Function} ensureOverlayCallback - Callback to ensure overlay state
  */
 function toggleWindow(mainWindow) {
   if (!mainWindow) return;
 
+  // Load native module once
+  let nativeWindow;
+  try {
+    nativeWindow = require('./window-native.node');
+  } catch (e) {
+    console.log('[WindowManager] Native module not available:', e.message);
+  }
+
   if (isWindowVisible) {
-    mainWindow.hide();
+    // === HIDE WINDOW ===
+    // First, restore focus to the previous app (like iTerm2)
+    if (nativeWindow) {
+      nativeWindow.restorePreviousApp();
+      nativeWindow.orderOut();
+    } else {
+      mainWindow.hide();
+    }
     isWindowVisible = false;
   } else {
+    // === SHOW WINDOW ===
+    // 1. Save the currently active app BEFORE we activate ourselves (like iTerm2's storePreviouslyActiveApp)
+    if (nativeWindow) {
+      nativeWindow.savePreviousApp();
+    }
+
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
@@ -207,25 +228,34 @@ function toggleWindow(mainWindow) {
       mainWindow.setBounds({ x: newX, y: newY });
     }
 
-    mainWindow.show();  // Changed from showInactive() to show() for better rendering
+    // 2. Show window first
+    mainWindow.show();
 
     if (typeof mainWindow.moveTop === 'function') {
       mainWindow.moveTop();
     }
 
-    // Force focus on main window to ensure keyboard shortcuts work immediately
-    mainWindow.focus();
-    require('electron').app.focus({ steal: true });
+    // 3. Basic focus attempt (simulateClick will be called in finishActivation)
+    if (!nativeWindow) {
+      // Fallback without native module
+      mainWindow.focus();
+      require('electron').app.focus({ steal: true });
+    }
+
+    // Set webContents focus after a delay to ensure activation is complete
+    setTimeout(() => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        finishActivation(mainWindow, nativeWindow);
+      }
+    }, 150);
 
     isWindowVisible = true;
 
     // Restore detached mode state if it was active
     if (isDetachedMode) {
       mainWindow.setIgnoreMouseEvents(true, { forward: true });
-      // Send detached.restore (not detached.enter) to apply state without re-saving
       mainWindow.webContents.send('detached.restore');
 
-      // Ensure navbar is hidden in detached mode and disable pointer events
       if (mainWindow.viewManager) {
         mainWindow.viewManager.setNavBarVisible(false);
         mainWindow.viewManager.setDetachedModeForAllTabs(true);
@@ -241,6 +271,30 @@ function toggleWindow(mainWindow) {
 
     // Force redraw to fix blurry text
     forceRedraw(mainWindow);
+  }
+}
+
+/**
+ * Finish activation after app becomes active (like iTerm2's rollInFinished)
+ * @param {BrowserWindow} mainWindow - Main window instance
+ * @param {Object} nativeWindow - Native module (optional)
+ */
+function finishActivation(mainWindow, nativeWindow) {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+
+  // Simulate click to force focus transfer from apps like iTerm2
+  // This is done here (after delay) to ensure window is fully visible
+  if (nativeWindow && nativeWindow.simulateClick) {
+    nativeWindow.simulateClick();
+  }
+
+  // Focus the active tab's webContents (like iTerm2's makeFirstResponder)
+  if (mainWindow.viewManager) {
+    const activeView = mainWindow.viewManager.getActiveView();
+    if (activeView && activeView.webContents && !activeView.webContents.isDestroyed()) {
+      activeView.webContents.focus();
+      console.log('[WindowManager] ✓ Focused webContents');
+    }
   }
 }
 
@@ -269,6 +323,11 @@ function configureNativeWindow(win) {
   try {
     // Try to load native module if available
     const nativeWindow = require('./window-native.node');
+
+    // Start app activation tracking (for proper focus restore)
+    if (nativeWindow.startAppTracking) {
+      nativeWindow.startAppTracking();
+    }
 
     // Try with handle first, but module will auto-find window if handle is invalid
     try {
