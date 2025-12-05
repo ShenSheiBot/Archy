@@ -8,6 +8,9 @@ let tabs = [];
 let activeTabId = null;
 let nextTabId = 1;
 
+// Closed tabs history (LIFO stack, max 20)
+let closedTabs = [];
+
 // Pending tab updates (for debouncing)
 const pendingUpdates = new Map();
 
@@ -127,6 +130,14 @@ function switchToTab(tabId, sendUpdateCallback) {
 async function closeTab(tabId, sendUpdateCallback) {
   const tabIndex = tabs.findIndex(t => t.id === tabId);
   if (tabIndex === -1) return false;
+
+  const tab = tabs[tabIndex];
+
+  // Save to closed history (skip quick-access pages)
+  if (tab.url && !tab.url.includes('quick-access.html')) {
+    closedTabs.push({ url: tab.url, title: tab.title, favicon: tab.favicon });
+    if (closedTabs.length > 20) closedTabs.shift();
+  }
 
   tabs.splice(tabIndex, 1);
 
@@ -402,6 +413,18 @@ function reloadTab(tabId) {
   return false;
 }
 
+/**
+ * Restore most recently closed tab
+ * @param {Function} sendUpdateCallback - Callback to send tabs update to renderer
+ * @param {Function} notifyRendererCallback - Callback to notify renderer of new tab
+ * @returns {number|null} New tab ID or null if no closed tabs
+ */
+function restoreClosedTab(sendUpdateCallback, notifyRendererCallback) {
+  if (closedTabs.length === 0) return null;
+  const restored = closedTabs.pop();
+  return createTab(restored.url, sendUpdateCallback, notifyRendererCallback);
+}
+
 module.exports = {
   getTabs,
   getActiveTabId,
@@ -418,5 +441,6 @@ module.exports = {
   closeOtherTabs,
   closeTabsToRight,
   duplicateTab,
-  reloadTab
+  reloadTab,
+  restoreClosedTab
 };

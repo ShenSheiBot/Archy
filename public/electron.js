@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme } = require('electron');
+const { app, BrowserWindow, ipcMain, globalShortcut, screen, Tray, Menu, nativeImage, session, shell, nativeTheme, crashReporter } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const pdfWindow = require('electron-pdf-window');
 const path = require('path');
@@ -11,14 +11,38 @@ const url = require('url');
 const fs = require('fs');
 const os = require('os');
 
+// Initialize crash reporter - saves crash dumps locally
+crashReporter.start({
+  submitURL: '',  // Empty = don't submit anywhere, just save locally
+  uploadToServer: false,
+  compress: false
+});
+
 // Prevent EPIPE errors from crashing the app (common in dev mode with concurrently)
 process.on('uncaughtException', (err) => {
   if (err.code === 'EPIPE' || (err.message && err.message.includes('EPIPE'))) {
     // Ignore EPIPE errors - happens when stdout/stderr is closed (e.g., in dev mode)
     return;
   }
-  // Re-throw other errors
+  // Try to save session before crashing
   console.error('Uncaught Exception:', err);
+  try {
+    const { saveSession: emergencySave } = require('./sessionManager');
+    const tabMgr = require('./tabManager');
+    const tabs = tabMgr.getTabs();
+    if (tabs && tabs.length > 0) {
+      emergencySave({
+        tabs: tabs.map(t => ({ url: t.url, title: t.title, favicon: t.favicon })),
+        activeTabId: tabMgr.getActiveTabId(),
+        _crashSave: true,
+        _crashTime: new Date().toISOString(),
+        _crashError: err.message
+      });
+      console.error('[Session] Emergency save completed before crash');
+    }
+  } catch (saveErr) {
+    console.error('[Session] Emergency save failed:', saveErr);
+  }
   throw err;
 });
 
@@ -54,7 +78,22 @@ let globalZoom = 100;
 // Detached mode opacity (percentage, 20-100)
 let detachedOpacity = 50;
 
-// Save session to disk
+// Debounced session save to avoid excessive disk writes
+let saveSessionTimeout = null;
+const SAVE_DEBOUNCE_MS = 2000;  // Save at most every 2 seconds
+
+// Save session to disk (debounced version for automatic saves)
+function saveSessionDebounced() {
+  if (saveSessionTimeout) {
+    clearTimeout(saveSessionTimeout);
+  }
+  saveSessionTimeout = setTimeout(() => {
+    saveSession();
+    saveSessionTimeout = null;
+  }, SAVE_DEBOUNCE_MS);
+}
+
+// Save session to disk (immediate)
 function saveSession() {
   const tabs = tabManager.getTabs();
   const sessionData = {
@@ -328,6 +367,9 @@ function sendTabsUpdate() {
   if (!mainWindow || !mainWindow.viewManager || !mainWindow.viewManager.navBarView) return;
   const tabsData = tabManager.getTabsData();
   mainWindow.viewManager.navBarView.webContents.send('tabs.update', tabsData);
+
+  // Auto-save session when tabs change (debounced)
+  saveSessionDebounced();
 }
 
 // Helper function to notify navbar (show nav, focus)
@@ -456,6 +498,9 @@ function bindShortcutsToWebContents(webContents) {
         // Wrap to first tab
         switchToTab(tabs[0].id);
       }
+    },
+    restoreClosedTab: () => {
+      tabManager.restoreClosedTab(sendTabsUpdate, notifyRenderer);
     }
   };
 
@@ -738,6 +783,11 @@ app.on('window-all-closed', function () {
 });
 
 app.on('will-quit', () => {
-  // Session already saved in window 'close' event
+  // Clear any pending debounced save and save immediately
+  if (saveSessionTimeout) {
+    clearTimeout(saveSessionTimeout);
+    saveSessionTimeout = null;
+  }
+  saveSession();
   shortcutsManager.unregisterAllGlobalShortcuts();
 });

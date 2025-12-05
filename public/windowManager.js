@@ -216,19 +216,7 @@ function toggleWindow(mainWindow) {
       mainWindow.restore();
     }
 
-    const cursorPoint = screen.getCursorScreenPoint();
-    const currentDisplay = screen.getDisplayNearestPoint(cursorPoint);
-    const windowBounds = mainWindow.getBounds();
-    const { x, y, width, height } = currentDisplay.workArea;
-
-    const newX = Math.max(x, Math.min(windowBounds.x, x + width - windowBounds.width));
-    const newY = Math.max(y, Math.min(windowBounds.y, y + height - windowBounds.height));
-
-    if (newX !== windowBounds.x || newY !== windowBounds.y) {
-      mainWindow.setBounds({ x: newX, y: newY });
-    }
-
-    // 2. Show window first
+    // Show window first (keep window on its original screen, don't follow mouse)
     mainWindow.show();
 
     if (typeof mainWindow.moveTop === 'function') {

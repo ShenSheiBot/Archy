@@ -124,8 +124,8 @@ function bindShortcutsToWebContents(webContents, callbacks) {
   webContents._shortcutsBound = true;
 
   webContents.on('before-input-event', (event, input) => {
-    // Cmd/Ctrl+T: New tab
-    if (input.meta && input.key === 't' && input.type === 'keyDown') {
+    // Cmd/Ctrl+T: New tab (but not Cmd+Shift+T)
+    if (input.meta && !input.shift && input.key === 't' && input.type === 'keyDown') {
       event.preventDefault();
       if (callbacks.createTab) callbacks.createTab('');
       return;
@@ -135,6 +135,13 @@ function bindShortcutsToWebContents(webContents, callbacks) {
     if (input.meta && input.key === 'w' && input.type === 'keyDown') {
       event.preventDefault();
       if (callbacks.closeTab) callbacks.closeTab();
+      return;
+    }
+
+    // Cmd/Ctrl+Shift+T: Restore closed tab
+    if (input.meta && input.shift && input.key === 't' && input.type === 'keyDown') {
+      event.preventDefault();
+      if (callbacks.restoreClosedTab) callbacks.restoreClosedTab();
       return;
     }
 
