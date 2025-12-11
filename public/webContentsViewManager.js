@@ -872,11 +872,40 @@ class WebContentsViewManager extends EventEmitter {
     };
 
     // Favicon 更新
-    listeners['page-favicon-updated'] = (event, favicons) => {
-      const favicon = favicons && favicons.length > 0 ? favicons[0] : null;
+    listeners['page-favicon-updated'] = async (event, favicons) => {
+      const faviconUrl = favicons && favicons.length > 0 ? favicons[0] : null;
 
-      this.emit('tab-update', { tabId, updates: { favicon } });
-      this.emit('tab-favicon-updated', { tabId, favicon });
+      if (!faviconUrl) {
+        this.emit('tab-update', { tabId, updates: { favicon: null } });
+        this.emit('tab-favicon-updated', { tabId, favicon: null });
+        return;
+      }
+
+      // 如果已经是 data URL，直接使用
+      if (faviconUrl.startsWith('data:')) {
+        this.emit('tab-update', { tabId, updates: { favicon: faviconUrl } });
+        this.emit('tab-favicon-updated', { tabId, favicon: faviconUrl });
+        return;
+      }
+
+      // 在主进程中 fetch favicon 转成 data URL，绕过 CORP 限制
+      try {
+        const response = await fetch(faviconUrl);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        const buffer = await response.arrayBuffer();
+        const contentType = response.headers.get('content-type') || 'image/x-icon';
+        const base64 = Buffer.from(buffer).toString('base64');
+        const dataUrl = `data:${contentType};base64,${base64}`;
+
+        this.emit('tab-update', { tabId, updates: { favicon: dataUrl } });
+        this.emit('tab-favicon-updated', { tabId, favicon: dataUrl });
+      } catch (err) {
+        // Fetch 失败，用原始 URL 作为 fallback
+        console.warn(`[Favicon] Failed to fetch ${faviconUrl}:`, err.message);
+        this.emit('tab-update', { tabId, updates: { favicon: faviconUrl } });
+        this.emit('tab-favicon-updated', { tabId, favicon: faviconUrl });
+      }
     };
 
     // 加载失败

@@ -711,6 +711,9 @@ app.commandLine.appendSwitch('disable-renderer-backgrounding');
 app.commandLine.appendSwitch('disable-background-timer-throttling');
 app.commandLine.appendSwitch('disable-backgrounding-occluded-windows');
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.commandLine.appendSwitch('disk-cache-size', '104857600');  // 100MB disk cache limit
+app.commandLine.appendSwitch('media-cache-size', '52428800');  // 50MB media cache limit
+app.commandLine.appendSwitch('disable-quic');
 
 app.on('ready', async function () {
   if (app.dock) {
@@ -736,8 +739,6 @@ app.on('ready', async function () {
   } catch (error) {
     console.error('[AdBlock] Failed to initialize:', error);
   }
-
-  app.commandLine.appendSwitch('disable-quic');
 
   try {
     ses.preconnect({ url: 'https://www.google.com', numSockets: 4 });
