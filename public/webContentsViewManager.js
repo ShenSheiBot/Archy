@@ -145,6 +145,9 @@ class WebContentsViewManager extends EventEmitter {
     this.browserWindow.contentView.addChildView(this.overlayView);
     this.updateOverlayBounds();
 
+    // 必须在 loadURL 之前设置监听器，避免 race condition
+    this.setupOverlayListeners();
+
     const isDev = !!process.env.APP_URL;
     if (isDev) {
       const overlayUrl = `${process.env.APP_URL}/overlay.html`;
@@ -153,8 +156,6 @@ class WebContentsViewManager extends EventEmitter {
       const overlayPath = path.join(__dirname, '../build/overlay.html');
       this.overlayView.webContents.loadFile(overlayPath);
     }
-
-    this.setupOverlayListeners();
   }
 
   /**
@@ -427,18 +428,25 @@ class WebContentsViewManager extends EventEmitter {
       return;
     }
 
-    // 隐藏旧标签页
+    // 隐藏旧标签页 - 从视图层级中移除以避免事件干扰
     if (oldTabId !== null && this.contentViews.has(oldTabId)) {
       const oldView = this.contentViews.get(oldTabId);
       oldView.setVisible(false);
+      // 从视图层级中移除，避免隐藏的 view 干扰点击事件
+      if (this.browserWindow.contentView.children.includes(oldView)) {
+        this.browserWindow.contentView.removeChildView(oldView);
+      }
     }
 
     // 显示新标签页
     const newView = this.contentViews.get(tabId);
 
-    // 提升到最顶层（确保在其他 view 上方，但保持在 NavBar 下方）
-    // 对应专家报告：再次 addChildView 会将其重新排序到最顶层
-    this.browserWindow.contentView.addChildView(newView);
+    // 添加到视图层级（如果不在的话）
+    // 注意：必须把隐藏的 view 从层级中移除，因为 setVisible(false) 不会完全阻止事件接收
+    // 多个隐藏的 views 叠加会导致网页顶部区域点击失效
+    if (!this.browserWindow.contentView.children.includes(newView)) {
+      this.browserWindow.contentView.addChildView(newView);
+    }
 
     newView.setVisible(true);
 
