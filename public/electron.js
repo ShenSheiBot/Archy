@@ -678,7 +678,18 @@ function checkAndDownloadUpdate() {
 
 function listenUrlLoader() {
   const server = http.createServer((request, response) => {
-    let target_url = url.parse(request.url, true).query.url;
+    const parsedUrl = url.parse(request.url, true);
+
+    // Handle toggle request
+    if (parsedUrl.pathname === '/toggle') {
+      toggleWindow();
+      response.writeHead(200);
+      response.end('toggled');
+      return;
+    }
+
+    // Original URL loading logic
+    let target_url = parsedUrl.query.url;
     target_url = Array.isArray(target_url) ? target_url.pop() : target_url;
 
     if (target_url) {
@@ -686,7 +697,7 @@ function listenUrlLoader() {
       createTab(target_url);
     }
 
-    response.writeHeader(200);
+    response.writeHead(200);
     response.end();
   });
 
